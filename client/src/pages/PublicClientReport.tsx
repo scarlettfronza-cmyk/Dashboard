@@ -4,6 +4,8 @@ import { trpc } from "@/lib/trpc";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
+import { InstagramProfile } from "@/components/report/InstagramProfile";
+import { TopContent } from "@/components/report/TopContent";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function formatDate(d: Date) {
@@ -181,6 +183,10 @@ export default function PublicClientReport() {
   );
   const { data: postsData, isLoading: postsLoading } = (trpc as any).public.getPublicTopPosts.useQuery(
     { token, limit: 8, managerToken },
+    { enabled: !!clientInfo?.igUsername && activeTab === "Conteúdos" }
+  );
+  const { data: igInsights, isLoading: igInsightsLoading } = (trpc as any).public.getPublicInstagramInsights.useQuery(
+    { token, from: dateRange.from, to: dateRange.to, managerToken },
     { enabled: !!clientInfo?.igUsername && activeTab === "Conteúdos" }
   );
   const { data: publicCreativesData, isLoading: publicCreativesLoading } = (trpc as any).public.getPublicCreatives.useQuery(
@@ -654,55 +660,42 @@ export default function PublicClientReport() {
         {activeTab === "Conteúdos" && (
           <div>
             {!clientInfo?.igUsername ? (
-              <div className="text-center py-12 rounded-2xl border-2 border-dashed" style={{ borderColor: "oklch(0.20 0.008 20)" }}>
+              <div className="text-center py-12 rounded-2xl border-2 border-dashed" style={{ borderColor: theme.bgBorder }}>
                 <p className="text-sm" style={{ color: theme.textMuted }}>Instagram não conectado para este cliente.</p>
               </div>
-            ) : postsLoading ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{[...Array(8)].map((_, i) => <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{ background: theme.bgInput }} />)}</div>
-            ) : postsData?.posts?.length > 0 ? (
-              <div>
-                <div className="flex items-center gap-2 mb-5">
-                  <span className="text-xl">📸</span>
-                  <div>
-                    <h3 className="text-base font-bold" style={{ color: theme.textPrimary }}>Top Conteúdos</h3>
-                    <p className="text-xs" style={{ color: theme.textMuted }}>Ordenados por engajamento total</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {(postsData.posts as any[]).map((post: any, i: number) => (
-                    <a key={post.id} href={post.permalink} target="_blank" rel="noopener noreferrer"
-                      className="group relative rounded-2xl overflow-hidden block hover:opacity-90 transition-opacity" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                      <div className="aspect-square relative overflow-hidden" style={{ background: theme.bgInput }}>
-                        {(post.thumbnailUrl || post.mediaUrl) ? (
-                          <img src={post.thumbnailUrl ?? post.mediaUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-3xl" style={{ color: "oklch(0.35 0.008 20)" }}>📷</div>
-                        )}
-                        <div className="absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                          style={{ background: i < 3 ? accentColor : "rgba(0,0,0,0.5)" }}>
-                          #{i + 1}
-                        </div>
-                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-black/60 text-white">
-                          {post.mediaType === "VIDEO" ? "🎥" : post.mediaType === "CAROUSEL_ALBUM" ? "📷" : "🖼️"}
-                        </div>
-                      </div>
-                      <div className="p-2.5">
-                        <div className="flex justify-between text-[10px] mb-1" style={{ color: theme.textMuted }}>
-                          <span>❤️ {(post.insights?.likes ?? 0).toLocaleString("pt-BR")}</span>
-                          <span>💬 {(post.insights?.comments ?? 0).toLocaleString("pt-BR")}</span>
-                          <span>🔖 {(post.insights?.saved ?? 0).toLocaleString("pt-BR")}</span>
-                        </div>
-                        <div className="text-[10px] font-semibold" style={{ color: accentColor }}>
-                          {post.engagementScore.toLocaleString("pt-BR")} pts
-                        </div>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
             ) : (
-              <div className="text-center py-12 rounded-2xl border-2 border-dashed" style={{ borderColor: "oklch(0.20 0.008 20)" }}>
-                <p className="text-sm" style={{ color: theme.textMuted }}>Nenhum conteúdo encontrado.</p>
+              <div>
+                {/* ── Perfil: seguidores, crescimento e alcance ───────────── */}
+                {igInsightsLoading ? (
+                  <div className="grid gap-3 md:grid-cols-3 mb-8">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: theme.bgInput }} />
+                    ))}
+                  </div>
+                ) : igInsights?.connected && igInsights?.totals ? (
+                  <InstagramProfile
+                    totals={igInsights.totals}
+                    username={igInsights.username}
+                    accentColor={accentColor}
+                    periodLabel={periodLabel}
+                    t={theme}
+                  />
+                ) : null}
+
+                {/* ── Conteúdos que mais performaram ──────────────────────── */}
+                {postsLoading ? (
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="aspect-[4/5] rounded-2xl animate-pulse" style={{ background: theme.bgInput }} />
+                    ))}
+                  </div>
+                ) : postsData?.posts?.length > 0 ? (
+                  <TopContent posts={postsData.posts} accentColor={accentColor} t={theme} />
+                ) : (
+                  <div className="text-center py-12 rounded-2xl border-2 border-dashed" style={{ borderColor: theme.bgBorder }}>
+                    <p className="text-sm" style={{ color: theme.textMuted }}>Nenhum conteúdo encontrado no período.</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
