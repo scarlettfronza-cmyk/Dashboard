@@ -4,7 +4,8 @@ Plataforma multi-cliente para operação e relatórios de Meta Ads, vendas e con
 
 **Stack:** React 19 · TypeScript · Vite · Tailwind 4 · Express 4 · tRPC 11 · Drizzle ORM · MySQL/TiDB · Vitest · pnpm
 
-**Para rodar o projeto, comece por [`SETUP.md`](SETUP.md)** — banco, variáveis de
+**Para colocar no ar, sem programar, veja [`DEPLOY.md`](DEPLOY.md).**
+**Para rodar na sua máquina, veja [`SETUP.md`](SETUP.md)** — banco, variáveis de
 ambiente, restauração do backup e reconexão do Meta fora da plataforma Manus.
 
 A documentação técnica completa está em [`handoff/HANDOFF_TECNICO.md`](handoff/HANDOFF_TECNICO.md).
