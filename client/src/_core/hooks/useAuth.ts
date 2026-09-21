@@ -1,4 +1,4 @@
-import { getLoginUrl } from "@/const";
+import { getLoginUrlOrManager } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
@@ -9,8 +9,10 @@ type UseAuthOptions = {
 };
 
 export function useAuth(options?: UseAuthOptions) {
-  const { redirectOnUnauthenticated = false, redirectPath = getLoginUrl() } =
-    options ?? {};
+  // O destino é resolvido só quando o redirecionamento acontece. Como valor
+  // padrão de parâmetro, a montagem rodava em toda renderização e derrubava a
+  // página quando o portal OAuth não estava configurado.
+  const { redirectOnUnauthenticated = false, redirectPath } = options ?? {};
   const utils = trpc.useUtils();
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
@@ -65,9 +67,10 @@ export function useAuth(options?: UseAuthOptions) {
     if (meQuery.isLoading || logoutMutation.isPending) return;
     if (state.user) return;
     if (typeof window === "undefined") return;
-    if (window.location.pathname === redirectPath) return;
+    const destino = redirectPath ?? getLoginUrlOrManager();
+    if (window.location.pathname === destino) return;
 
-    window.location.href = redirectPath
+    window.location.href = destino;
   }, [
     redirectOnUnauthenticated,
     redirectPath,

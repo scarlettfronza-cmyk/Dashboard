@@ -5,7 +5,7 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { getLoginUrl } from "./const";
+import { getLoginUrlOrManager } from "./const";
 import { isManagerPath } from "./lib/managerSession";
 import "./index.css";
 
@@ -24,7 +24,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   // uma chamada legada falhar por cookie ausente.
   if (isManagerPath(window.location.pathname)) return;
 
-  window.location.href = getLoginUrl();
+  window.location.href = getLoginUrlOrManager();
 };
 
 queryClient.getQueryCache().subscribe(event => {
