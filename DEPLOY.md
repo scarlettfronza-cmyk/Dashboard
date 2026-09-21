@@ -65,21 +65,29 @@ clique em **Generate Domain**. Copie sem a barra no final.
 
 ## 5. Carregar seus dados
 
-O banco nasce vazio. Para trazer clientes, vendas e gestores do backup:
+O banco nasce vazio. A importação é feita pelo navegador, sem instalar nada.
 
-1. no serviço do **banco**, aba **Variables**, copie o valor de `DATABASE_URL`
-2. no seu computador, na pasta do projeto, rode:
+1. no serviço do sistema, aba **Variables**, acrescente uma senha longa:
 
-```bash
-pnpm install
-DATABASE_URL="cole-aqui" pnpm restaurar-backup ./backup.sql
+```
+RESTORE_TOKEN=escolha-uma-senha-de-no-minimo-16-caracteres
 ```
 
-O script mostra quantos registros entraram em cada tabela. Ele se recusa a
-rodar se o banco já tiver dados, a não ser que você acrescente `--forcar`.
+2. aguarde o serviço reiniciar
+3. abra `SEU-ENDERECO/importar`
+4. escolha o arquivo `backup.sql`, informe a mesma senha e clique em importar
 
-Se não quiser instalar nada no seu computador, peça a alguém para rodar esse
-comando — é o único passo que sai do navegador, e leva menos de um minuto.
+A tela mostra quantos registros entraram em cada tabela.
+
+**Ao terminar, remova a variável `RESTORE_TOKEN`.** Sem ela a rota deixa de
+existir — é assim que a porta se fecha.
+
+A importação é recusada quando o banco já tem registros, para não sobrescrever
+dados. Com a variável ausente, a rota responde como se não existisse, de modo
+que ninguém de fora descobre se ela está disponível.
+
+> Quem preferir a linha de comando pode usar, com Node instalado:
+> `DATABASE_URL="..." pnpm restaurar-backup ./backup.sql`
 
 ## 6. Reconectar o Meta
 

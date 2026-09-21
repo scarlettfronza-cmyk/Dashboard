@@ -41,7 +41,7 @@ export function splitSqlStatements(sql: string): string[] {
       continue;
     }
 
-    if (c === "'" || c === '"' || c === "`") { aspas = c as typeof aspas; cur += c; i++; continue; }
+    if (c === "'" || c === '"' || c === "`") { aspas = c as "'" | '"' | "`"; cur += c; i++; continue; }
 
     if (c === ";") {
       const t = cur.trim();

@@ -5,6 +5,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerMetaOAuthRoutes } from "../metaOAuth";
+import { registerRestoreRoute } from "../restoreRoute";
 import { registerSalesUploadRoute } from "../salesUpload";
 import { registerScheduledRoutes } from "../scheduledRoutes";
 import { startMondayCron } from "../mondayCron";
@@ -43,6 +44,7 @@ async function startServer() {
   registerOAuthRoutes(app);
   // Meta/Instagram OAuth callback under /api/meta/callback
   registerMetaOAuthRoutes(app);
+  registerRestoreRoute(app);
   // Sales XLSX upload endpoint
   registerSalesUploadRoute(app);
   // Scheduled task endpoints (budget check, etc.)
