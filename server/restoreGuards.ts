@@ -15,15 +15,23 @@
 import crypto from "node:crypto";
 
 export type Recusa =
-  | { ok: false; motivo: "desativado" | "senha_ausente" | "senha_invalida" | "banco_com_dados" | "arquivo_vazio" | "senha_fraca"; detalhe: string };
+  | { ok: false; motivo: "desativado" | "senha_ausente" | "senha_invalida" | "banco_com_dados" | "arquivo_vazio" | "senha_fraca" | "nova_senha_curta" | "gestor_nao_encontrado"; detalhe: string };
 export type Resultado = { ok: true } | Recusa;
 
 /** Mínimo para que a senha não seja adivinhável por tentativa. */
 export const TAMANHO_MINIMO_SENHA = 16;
 
-export function importacaoHabilitada(env: NodeJS.ProcessEnv): boolean {
-  const t = env.RESTORE_TOKEN;
+/** Nome da variável que liga cada operação protegida. */
+export type Porta = "RESTORE_TOKEN" | "RECOVERY_TOKEN";
+
+export function operacaoHabilitada(env: NodeJS.ProcessEnv, porta: Porta): boolean {
+  const t = env[porta];
   return typeof t === "string" && t.length >= TAMANHO_MINIMO_SENHA;
+}
+
+/** @deprecated use operacaoHabilitada(env, "RESTORE_TOKEN") */
+export function importacaoHabilitada(env: NodeJS.ProcessEnv): boolean {
+  return operacaoHabilitada(env, "RESTORE_TOKEN");
 }
 
 /** Comparação em tempo constante: evita descobrir a senha medindo a resposta. */
@@ -34,8 +42,12 @@ function iguais(a: string, b: string): boolean {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-export function autorizar(env: NodeJS.ProcessEnv, enviada: unknown): Resultado {
-  const esperada = env.RESTORE_TOKEN;
+export function autorizar(
+  env: NodeJS.ProcessEnv,
+  enviada: unknown,
+  porta: Porta = "RESTORE_TOKEN",
+): Resultado {
+  const esperada = env[porta];
 
   if (typeof esperada !== "string" || esperada.length === 0) {
     return { ok: false, motivo: "desativado", detalhe: "A importação não está habilitada neste ambiente." };
@@ -69,6 +81,19 @@ export function bancoAceitaCarga(tabelasComDados: number): Resultado {
 export function arquivoUtilizavel(sql: unknown): Resultado {
   if (typeof sql !== "string" || sql.trim().length === 0) {
     return { ok: false, motivo: "arquivo_vazio", detalhe: "O arquivo enviado está vazio." };
+  }
+  return { ok: true };
+}
+
+/** Tamanho mínimo da nova senha do gestor, igual ao exigido no cadastro. */
+export const TAMANHO_MINIMO_SENHA_GESTOR = 8;
+
+export function novaSenhaValida(senha: unknown): Resultado {
+  if (typeof senha !== "string" || senha.length < TAMANHO_MINIMO_SENHA_GESTOR) {
+    return {
+      ok: false, motivo: "nova_senha_curta",
+      detalhe: `A nova senha precisa de ao menos ${TAMANHO_MINIMO_SENHA_GESTOR} caracteres.`,
+    };
   }
   return { ok: true };
 }

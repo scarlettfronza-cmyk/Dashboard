@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   autorizar, bancoAceitaCarga, arquivoUtilizavel, importacaoHabilitada,
-  TAMANHO_MINIMO_SENHA,
+  operacaoHabilitada, novaSenhaValida, TAMANHO_MINIMO_SENHA,
 } from "./restoreGuards";
 
 const SENHA = "x".repeat(TAMANHO_MINIMO_SENHA);
@@ -52,5 +52,29 @@ describe("proteção da importação", () => {
 
   it("aceita arquivo com conteúdo", () => {
     expect(arquivoUtilizavel("CREATE TABLE a (id int);")).toEqual({ ok: true });
+  });
+});
+
+describe("segunda porta protegida (recuperação)", () => {
+  it("cada porta é independente da outra", () => {
+    const env = { RESTORE_TOKEN: SENHA } as unknown as NodeJS.ProcessEnv;
+    expect(operacaoHabilitada(env, "RESTORE_TOKEN")).toBe(true);
+    expect(operacaoHabilitada(env, "RECOVERY_TOKEN")).toBe(false);
+    // Ter a senha da importação não abre a recuperação.
+    expect(autorizar(env, SENHA, "RECOVERY_TOKEN")).toMatchObject({ ok: false, motivo: "desativado" });
+  });
+
+  it("autoriza pela porta certa", () => {
+    const env = { RECOVERY_TOKEN: SENHA } as unknown as NodeJS.ProcessEnv;
+    expect(autorizar(env, SENHA, "RECOVERY_TOKEN")).toEqual({ ok: true });
+  });
+
+  it("recusa nova senha curta", () => {
+    expect(novaSenhaValida("1234567")).toMatchObject({ ok: false, motivo: "nova_senha_curta" });
+    expect(novaSenhaValida("")).toMatchObject({ ok: false, motivo: "nova_senha_curta" });
+  });
+
+  it("aceita nova senha com o tamanho mínimo", () => {
+    expect(novaSenhaValida("12345678")).toEqual({ ok: true });
   });
 });

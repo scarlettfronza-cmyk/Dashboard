@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Privacy from "./pages/Privacy";
 import ImportarDados from "@/pages/ImportarDados";
+import RecuperarAcesso from "@/pages/RecuperarAcesso";
 import ManagerLogin from "./pages/ManagerLogin";
 import ManagerDashboard from "./pages/ManagerDashboard";
 import ManagerClientSettings from "./pages/ManagerClientSettings";
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/importar" component={ImportarDados} />
+      <Route path="/recuperar" component={RecuperarAcesso} />
       <Route path="/manager" component={ManagerEntry} />
       <Route path="/manager/login" component={ManagerLogin} />
       <Route path="/manager/dashboard" component={ManagerDashboard} />

@@ -98,6 +98,23 @@ que ninguém de fora descobre se ela está disponível.
 > Quem preferir a linha de comando pode usar, com Node instalado:
 > `DATABASE_URL="..." pnpm restaurar-backup ./backup.sql`
 
+## 5b. Se não souber a senha do gestor
+
+O acesso administrativo dependia do login da plataforma antiga e não existe
+mais. Criar uma conta nova não resolve: as atribuições de clientes apontam
+para o cadastro original, e a conta nova nasceria sem nenhuma clínica.
+
+Para redefinir a senha de um gestor já cadastrado:
+
+1. em **Variables**, acrescente `RECOVERY_TOKEN` com uma senha de ao menos
+   16 caracteres, e aguarde o serviço reiniciar;
+2. abra `SEU-ENDERECO/recuperar`;
+3. informe essa senha, escolha o gestor na lista e defina a nova senha;
+4. **remova `RECOVERY_TOKEN`** — sem ela a rota deixa de existir.
+
+A senha é guardada como hash, nunca em texto. Esta porta é separada da
+importação: a senha de uma não abre a outra.
+
 ## 6. Reconectar o Meta
 
 O login administrativo usava a autenticação da plataforma antiga e não
