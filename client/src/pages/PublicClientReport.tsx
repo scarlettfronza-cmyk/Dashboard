@@ -7,7 +7,7 @@ import {
 import { InstagramProfile } from "@/components/report/InstagramProfile";
 import { TopContent } from "@/components/report/TopContent";
 import { Trafego, Perfil, Comercial } from "@/components/report/ResultsMetrics";
-import { PRESETS, resolvePreset, type PresetId } from "@/lib/periodPresets";
+import { PeriodPicker } from "@/components/report/PeriodPicker";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function formatDate(d: Date) {
@@ -142,19 +142,12 @@ export default function PublicClientReport() {
   const token = params.token;
   const managerToken = typeof window !== "undefined" ? localStorage.getItem("manager_token") ?? undefined : undefined;
   const [activeTab, setActiveTab] = useState<Tab>("Resultados");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const now = new Date();
   const [fromDate, setFromDate] = useState<Date>(() => new Date(now.getFullYear(), now.getMonth(), 1));
   const [toDate, setToDate] = useState<Date>(() => startOfDay(now));
   const dateRange = useMemo(() => ({ from: formatDate(fromDate), to: formatDate(toDate) }), [fromDate, toDate]);
-
-  function applyPreset(preset: PresetId) {
-    const { from, to } = resolvePreset(preset, new Date());
-    setFromDate(from);
-    setToDate(to);
-  }
 
   const [mondayAutoSyncing, setMondayAutoSyncing] = useState(false);
   const syncBoardMutation = trpc.monday.syncBoardAsManager.useMutation();
@@ -303,55 +296,19 @@ export default function PublicClientReport() {
             </div>
 
             {/* Period presets — hidden on mobile */}
-            <div className="hidden md:flex items-center gap-1.5 flex-wrap justify-end">
-              {PRESETS.map(({ id, label }) => {
-                return (
-                  <button key={id} onClick={() => applyPreset(id)}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors" style={{ background: theme.bgInput, border: `1px solid ${theme.bgBorder}`, color: theme.textSecondary }}>
-                    {label}
-                  </button>
-                );
-              })}
-              <input type="date" value={formatDate(fromDate)} max={formatDate(toDate)}
-                onChange={e => { const d = new Date(e.target.value + "T00:00:00"); if (!isNaN(d.getTime())) setFromDate(d); }}
-                className="px-2 py-1 rounded-lg text-[10px] outline-none" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}`, color: theme.textSecondary }} />
-              <span className="text-xs" style={{ color: theme.textMuted }}>→</span>
-              <input type="date" value={formatDate(toDate)} min={formatDate(fromDate)} max={formatDate(startOfDay(now))}
-                onChange={e => { const d = new Date(e.target.value + "T00:00:00"); if (!isNaN(d.getTime())) setToDate(d); }}
-                className="px-2 py-1 rounded-lg text-[10px] outline-none" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}`, color: theme.textSecondary }} />
-            </div>
-
-            {/* Mobile: period button */}
-            <button className="md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px]" style={{ background: theme.bgInput, border: `1px solid ${theme.bgBorder}`, color: theme.textSecondary }}
-              onClick={() => setMobileMenuOpen(o => !o)}>
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="2"/>
-                <path d="M16 2v4M8 2v4M3 10h18" strokeWidth="2"/>
-              </svg>
-              {periodLabel}
-            </button>
+            {/* Seletor de período: um botão que abre o calendário de intervalo.
+                Substitui a fileira de presets mais dois campos de data, que
+                ocupava o cabeçalho inteiro e ainda exigia dois seletores
+                separados para um intervalo qualquer. */}
+            <PeriodPicker
+              from={fromDate}
+              to={toDate}
+              onChange={(f, t) => { setFromDate(f); setToDate(t); }}
+              accentColor={accentColor}
+              maxDate={startOfDay(now)}
+              t={theme}
+            />
           </div>
-
-          {/* Mobile date panel */}
-          {mobileMenuOpen && (
-            <div className="md:hidden pb-3 pt-1 flex flex-wrap gap-1.5 items-center" style={{ borderTop: `1px solid ${theme.bgBorder}` }}>
-              {PRESETS.map(({ id, label }) => {
-                return (
-                  <button key={id} onClick={() => { applyPreset(id); setMobileMenuOpen(false); }}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors" style={{ background: theme.bgInput, border: `1px solid ${theme.bgBorder}`, color: theme.textSecondary }}>
-                    {label}
-                  </button>
-                );
-              })}
-              <input type="date" value={formatDate(fromDate)} max={formatDate(toDate)}
-                onChange={e => { const d = new Date(e.target.value + "T00:00:00"); if (!isNaN(d.getTime())) setFromDate(d); }}
-                className="px-2 py-1 rounded-lg text-[10px] outline-none" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}`, color: theme.textSecondary }} />
-              <span className="text-xs" style={{ color: theme.textMuted }}>→</span>
-              <input type="date" value={formatDate(toDate)} min={formatDate(fromDate)} max={formatDate(startOfDay(now))}
-                onChange={e => { const d = new Date(e.target.value + "T00:00:00"); if (!isNaN(d.getTime())) setToDate(d); }}
-                className="px-2 py-1 rounded-lg text-[10px] outline-none" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}`, color: theme.textSecondary }} />
-            </div>
-          )}
 
           {/* Tabs — horizontal scroll on mobile */}
           <div ref={tabsRef} className="flex gap-0 overflow-x-auto scrollbar-none -mb-px" style={{ borderTop: `1px solid ${theme.bgBorder}` }}>
