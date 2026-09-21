@@ -7,6 +7,9 @@ import {
 import { InstagramProfile } from "@/components/report/InstagramProfile";
 import { TopContent } from "@/components/report/TopContent";
 import { Trafego, Perfil, Comercial } from "@/components/report/ResultsMetrics";
+import { Capa, Eyebrow, Statement, Texto, Destaque } from "@/components/report/ReportNarrative";
+import { PrintStyles } from "@/components/report/PrintStyles";
+import { lerPeriodo } from "@/lib/analiseRelatorio";
 import { PeriodPicker } from "@/components/report/PeriodPicker";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -155,7 +158,7 @@ export default function PublicClientReport() {
 
   const { data: _clientInfoRaw, isLoading: loadingClient, error: clientError } =
     trpc.public.getClientByToken.useQuery({ token, managerToken }, { enabled: !!token });
-  const clientInfo = _clientInfoRaw as (typeof _clientInfoRaw & { logoUrl?: string | null; brandColor?: string | null }) | undefined;
+  const clientInfo = _clientInfoRaw as (typeof _clientInfoRaw & { logoUrl?: string | null; brandColor?: string | null; proximosPassos?: string | null }) | undefined;
 
   useEffect(() => {
     if (!clientInfo?.id) return;
@@ -251,6 +254,27 @@ export default function PublicClientReport() {
     { name: "Fechamentos", value: d.vendas ?? 0, color: adjHex(ac, 0.60) },
   ] : [];
 
+  // Manchete: o número mais forte do período. Com dado de mídia, o retorno;
+  // sem ele, a receita — prometer ROAS sem investimento seria inventar.
+  const manchete = (() => {
+    const temMidia = Boolean(d?.mediaDataAvailable) && (d?.investimento ?? 0) > 0;
+    if (temMidia && roas > 0) {
+      return { linha1: `${fmt(totalVendas, "R$")} em receita,`, linha2: `${roas.toFixed(2)}x de retorno.` };
+    }
+    if (totalVendas > 0) {
+      return { linha1: `${fmt(d?.vendas ?? 0)} procedimentos fechados,`, linha2: `${fmt(totalVendas, "R$")} em receita.` };
+    }
+    return { linha1: `${fmt(d?.consultas ?? 0)} consultas agendadas`, linha2: "no período." };
+  })();
+
+  const leitura = lerPeriodo({
+    investimento: d?.investimento, leads: d?.leads, consultas: d?.consultas,
+    vendas: d?.vendas, receitaTotal: totalVendas, roas, ticketMedio,
+    custoPorLead, custoPorVenda: d?.custoPorVenda, novosSeguidores: d?.novosSeguidores,
+    alcance: d?.alcance, mediaDataAvailable: d?.mediaDataAvailable,
+    campanhas: d?.campanhas,
+  });
+
   const periodLabel = (() => {
     const f = fromDate; const t = toDate;
     if (f.getMonth() === t.getMonth() && f.getFullYear() === t.getFullYear()) {
@@ -261,9 +285,10 @@ export default function PublicClientReport() {
 
   return (
     <div className="min-h-screen" style={{ background: theme.bg, fontFamily: "'Inter', sans-serif" }}>
+      <PrintStyles fundo={theme.bg} />
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30" style={{ background: theme.bgHeader, borderBottom: `1px solid ${theme.bgBorder}` }}>
+      <header className="sticky top-0 z-30" data-print="hide" style={{ background: theme.bgHeader, borderBottom: `1px solid ${theme.bgBorder}` }}>
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex items-center justify-between h-14 gap-3">
             {/* Brand */}
@@ -326,7 +351,7 @@ export default function PublicClientReport() {
       </header>
 
       {/* ── Main Content ───────────────────────────────────────────────────── */}
-      <main className="max-w-5xl mx-auto px-4 py-6" style={{ color: theme.textPrimary }}>
+      <main className="max-w-5xl mx-auto px-4 py-6" data-print="page" style={{ color: theme.textPrimary }}>
         {/* Period label */}
         <div className="flex items-center justify-between mb-5">
           <div>
@@ -350,20 +375,16 @@ export default function PublicClientReport() {
             {/* ── RESULTADOS ───────────────────────────────────────────────── */}
             {activeTab === "Resultados" && (
               <div className="space-y-6">
-                <section className="rounded-2xl px-5 py-5" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                  <p className="text-[10px] uppercase tracking-widest font-semibold mb-2" style={{ color: theme.textMuted }}>Resumo do período</p>
-                  <p className="text-base md:text-lg leading-relaxed" style={{ color: theme.textSecondary }}>
-                    Investimento de <strong style={{ color: theme.textPrimary }}>{fmt(d.investimento, "R$")}</strong> gerou <strong style={{ color: theme.textPrimary }}>{fmt(totalVendas, "R$")}</strong> em receita, com <strong style={{ color: accentColor }}>ROAS de {roas > 0 ? `${roas.toFixed(2)}x` : "—"}</strong> e ticket médio de <strong style={{ color: theme.textPrimary }}>{fmt(ticketMedio, "R$")}</strong>.
-                  </p>
-                  <div className="mt-4 pt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs" style={{ borderTop: `1px solid ${theme.bgBorder}`, color: theme.textMuted }}>
-                    <span>Leads: <strong style={{ color: theme.textPrimary }}>{fmt(d.leads)}</strong></span>
-                    <span>CPL: <strong style={{ color: theme.textPrimary }}>{fmt(custoPorLead, "R$")}</strong></span>
-                    <span>Consultas: <strong style={{ color: theme.textPrimary }}>{fmt(d.consultas ?? 0)}</strong></span>
-                    <span>Fechamentos: <strong style={{ color: theme.textPrimary }}>{fmt(d.vendas)}</strong></span>
-                    <span>Alcance: <strong style={{ color: theme.textPrimary }}>{fmt(d.alcance)}</strong></span>
-                    <span>Cliques: <strong style={{ color: theme.textPrimary }}>{fmt(d.cliquesEstimados)}</strong></span>
-                  </div>
-                </section>
+                {/* Capa: manchete com o número mais forte do período. */}
+                <Capa
+                  manchete={manchete.linha1}
+                  destaque={manchete.linha2}
+                  subtitulo={`Leitura de ${periodLabel}, com os resultados de mídia, perfil e comercial.`}
+                  cliente={clientInfo.name}
+                  periodo={periodLabel}
+                  accentColor={accentColor}
+                  t={theme}
+                />
 
                 {/* ── Métricas do período ─────────────────────────────────── */}
                 <Trafego
@@ -397,6 +418,29 @@ export default function PublicClientReport() {
                   accentColor={accentColor}
                   t={theme}
                 />
+
+                {/* ── Leitura do período ──────────────────────────────────── */}
+                {leitura.analise.length > 0 && (
+                  <section>
+                    <Eyebrow accentColor={accentColor}>Análise</Eyebrow>
+                    <Statement t={theme}>O que os números dizem.</Statement>
+                    <Texto paragrafos={leitura.analise} t={theme} />
+                  </section>
+                )}
+
+                <section>
+                  <Eyebrow accentColor={accentColor}>Recomendação</Eyebrow>
+                  <Statement t={theme}>Para onde olhar agora.</Statement>
+                  <Destaque paragrafos={leitura.recomendacao} accentColor={accentColor} t={theme} />
+                </section>
+
+                {clientInfo.proximosPassos && (
+                  <section>
+                    <Eyebrow accentColor={accentColor}>Próximos passos</Eyebrow>
+                    <Texto paragrafos={[clientInfo.proximosPassos]} t={theme} />
+                  </section>
+                )}
+
 
                 <div className="px-1 py-1 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between" style={{ color: theme.textMuted }}>
                   <div>
