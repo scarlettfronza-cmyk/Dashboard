@@ -1,0 +1,1 @@
+ALTER TABLE `clients` ADD `reportTheme` varchar(10) DEFAULT 'dark';

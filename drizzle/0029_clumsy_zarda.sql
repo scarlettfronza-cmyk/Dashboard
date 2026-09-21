@@ -1,0 +1,1 @@
+CREATE INDEX `oauth_states_expiresAt_idx` ON `oauth_states` (`expiresAt`);

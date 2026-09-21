@@ -1,0 +1,1 @@
+ALTER TABLE `clients` ADD `whatsappNumber` varchar(30);

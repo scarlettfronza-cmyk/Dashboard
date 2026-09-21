@@ -1,0 +1,1 @@
+ALTER TABLE `sales_records` ADD `closedValue` decimal(15,2);

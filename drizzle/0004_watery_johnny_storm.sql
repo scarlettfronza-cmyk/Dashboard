@@ -1,0 +1,1 @@
+ALTER TABLE `integrations` MODIFY COLUMN `provider` enum('meta_ads','monday','google_sheets','sales_sheet','followers_sheet') NOT NULL;

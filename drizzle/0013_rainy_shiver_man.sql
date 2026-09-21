@@ -1,0 +1,1 @@
+ALTER TABLE `sales_records` ADD `conversionDate` timestamp;
