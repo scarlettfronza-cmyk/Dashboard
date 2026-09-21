@@ -574,7 +574,7 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
         }
         if (r.formulario) {
           metaData.formulario = metaData.formulario
-            ? { investimento: metaData.formulario.investimento + r.formulario.investimento, cliques: metaData.formulario.cliques + r.formulario.cliques, custoPorClique: 0 }
+            ? { investimento: metaData.formulario.investimento + r.formulario.investimento, cliques: metaData.formulario.cliques + r.formulario.cliques, custoPorClique: 0, leads: metaData.formulario.leads + r.formulario.leads, custoPorLead: 0 }
             : r.formulario;
         }
       }
@@ -583,7 +583,10 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
       metaData.custoPorClique = metaData.cliquesNoLink > 0 ? metaData.investimento / metaData.cliquesNoLink : 0;
       if (metaData.mensagens) metaData.mensagens.custoPorLead = metaData.mensagens.leads > 0 ? metaData.mensagens.investimento / metaData.mensagens.leads : 0;
       if (metaData.visitas) metaData.visitas.custoPorVisita = metaData.visitas.alcance > 0 ? metaData.visitas.investimento / metaData.visitas.alcance : 0;
-      if (metaData.formulario) metaData.formulario.custoPorClique = metaData.formulario.cliques > 0 ? metaData.formulario.investimento / metaData.formulario.cliques : 0;
+      if (metaData.formulario) {
+        metaData.formulario.custoPorClique = metaData.formulario.cliques > 0 ? metaData.formulario.investimento / metaData.formulario.cliques : 0;
+        metaData.formulario.custoPorLead = metaData.formulario.leads > 0 ? metaData.formulario.investimento / metaData.formulario.leads : 0;
+      }
       investimento = metaData.investimento;
       leads = metaData.leads;
       alcance = metaData.alcance;

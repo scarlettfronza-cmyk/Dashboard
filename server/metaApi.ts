@@ -6,6 +6,9 @@
  */
 
 import axios from "axios";
+import {
+  formLeadsFrom, reportedCostPer, blendCostPerLead, FORM_ACTIONS,
+} from "./metaLeadActions";
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v19.0";
 
@@ -38,6 +41,9 @@ export interface MetaAdsData {
     investimento: number;
     cliques: number;
     custoPorClique: number;
+    /** Leads de formulário: instantâneo do Meta ou pixel em site próprio. */
+    leads: number;
+    custoPorLead: number;
   };
 }
 
@@ -176,6 +182,9 @@ export async function fetchMetaAdsFromApi(
 
   let formularioInvestimento = 0;
   let formularioCliques = 0;
+  let formularioLeads = 0;
+  let formularioCustoPonderado = 0;
+  let formularioLeadsComCusto = 0;
   let totalInstagramFollows = 0;
   let totalNovosContatos = 0;
   let totalTotalContatos = 0;
@@ -213,10 +222,13 @@ export async function fetchMetaAdsFromApi(
     totalTotalContatos += totalContacts;
     totalConversasRespondidas += repliedConversations;
 
+    // Leads de formulário: nunca eram lidos, apesar de já virem em `actions`.
+    const formLeads = formLeadsFrom(actions);
+
     totalInvestimento += spend;
     totalAlcance += reach;
     totalCliques += linkClicks;
-    totalLeads += msgConversations;
+    totalLeads += msgConversations + formLeads;
 
     if (msgConversations > 0 && msgCostPerLead > 0) {
       totalCostPerLead += msgCostPerLead * msgConversations;
@@ -231,6 +243,12 @@ export async function fetchMetaAdsFromApi(
     if (isFormulario) {
       formularioInvestimento += spend;
       formularioCliques += linkClicks;
+      formularioLeads += formLeads;
+      const cpl = reportedCostPer(costPerAction, FORM_ACTIONS);
+      if (cpl != null && formLeads > 0) {
+        formularioCustoPonderado += cpl * formLeads;
+        formularioLeadsComCusto += formLeads;
+      }
     } else if (isVisitas) {
       visitasInvestimento += spend;
       visitasAlcance += reach;
@@ -275,6 +293,11 @@ export async function fetchMetaAdsFromApi(
       investimento: formularioInvestimento,
       cliques: formularioCliques,
       custoPorClique: formularioCliques > 0 ? formularioInvestimento / formularioCliques : 0,
+      leads: formularioLeads,
+      custoPorLead: blendCostPerLead(
+        formularioCustoPonderado, formularioLeadsComCusto,
+        formularioInvestimento, formularioLeads,
+      ),
     },
   };
 }

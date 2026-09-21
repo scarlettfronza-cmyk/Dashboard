@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { InstagramProfile } from "@/components/report/InstagramProfile";
 import { TopContent } from "@/components/report/TopContent";
+import { Trafego, Perfil, Comercial } from "@/components/report/ResultsMetrics";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function formatDate(d: Date) {
@@ -187,7 +188,7 @@ export default function PublicClientReport() {
   );
   const { data: igInsights, isLoading: igInsightsLoading } = (trpc as any).public.getPublicInstagramInsights.useQuery(
     { token, from: dateRange.from, to: dateRange.to, managerToken },
-    { enabled: !!clientInfo?.igUsername && activeTab === "Conteúdos" }
+    { enabled: !!clientInfo?.igUsername }
   );
   const { data: publicCreativesData, isLoading: publicCreativesLoading } = (trpc as any).public.getPublicCreatives.useQuery(
     { token, from: dateRange.from, to: dateRange.to, managerToken },
@@ -410,6 +411,39 @@ export default function PublicClientReport() {
                     <span>Cliques: <strong style={{ color: theme.textPrimary }}>{fmt(d.cliquesEstimados)}</strong></span>
                   </div>
                 </section>
+
+                {/* ── Métricas do período ─────────────────────────────────── */}
+                <Trafego
+                  investimento={d.investimento ?? 0}
+                  leads={d.leads ?? 0}
+                  leadsMensagem={d.campanhas?.mensagens?.leads ?? 0}
+                  leadsFormulario={d.campanhas?.formulario?.leads ?? 0}
+                  cplMensagem={d.campanhas?.mensagens?.custoPorLead ?? custoPorLead}
+                  cplFormulario={d.campanhas?.formulario?.custoPorLead ?? 0}
+                  alcance={d.alcance ?? 0}
+                  cliquesNoLink={d.cliquesEstimados ?? 0}
+                  accentColor={accentColor}
+                  t={theme}
+                />
+
+                {igInsights?.connected && igInsights?.totals && (
+                  <Perfil
+                    novosSeguidores={igInsights.totals.novosSeguidores ?? 0}
+                    visitasAoPerfil={igInsights.totals.profileVisits ?? 0}
+                    cliquesNoLinkBio={igInsights.totals.interactions ?? 0}
+                    t={theme}
+                  />
+                )}
+
+                <Comercial
+                  roas={roas}
+                  receita={totalVendas}
+                  ticketMedio={ticketMedio}
+                  consultasAgendadas={d.consultas ?? 0}
+                  vendas={d.vendas ?? 0}
+                  accentColor={accentColor}
+                  t={theme}
+                />
 
                 <div className="px-1 py-1 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between" style={{ color: theme.textMuted }}>
                   <div>
