@@ -7,6 +7,7 @@ import {
 import { InstagramProfile } from "@/components/report/InstagramProfile";
 import { TopContent } from "@/components/report/TopContent";
 import { Trafego, Perfil, Comercial } from "@/components/report/ResultsMetrics";
+import { PRESETS, resolvePreset, type PresetId } from "@/lib/periodPresets";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function formatDate(d: Date) {
@@ -149,13 +150,10 @@ export default function PublicClientReport() {
   const [toDate, setToDate] = useState<Date>(() => startOfDay(now));
   const dateRange = useMemo(() => ({ from: formatDate(fromDate), to: formatDate(toDate) }), [fromDate, toDate]);
 
-  function applyPreset(preset: string) {
-    const today = startOfDay(new Date());
-    if (preset === "today") { setFromDate(today); setToDate(today); }
-    else if (preset === "7d") { setFromDate(addDays(today, -6)); setToDate(today); }
-    else if (preset === "30d") { setFromDate(addDays(today, -29)); setToDate(today); }
-    else if (preset === "month") { setFromDate(new Date(today.getFullYear(), today.getMonth(), 1)); setToDate(today); }
-    else if (preset === "3m") { setFromDate(addDays(today, -89)); setToDate(today); }
+  function applyPreset(preset: PresetId) {
+    const { from, to } = resolvePreset(preset, new Date());
+    setFromDate(from);
+    setToDate(to);
   }
 
   const [mondayAutoSyncing, setMondayAutoSyncing] = useState(false);
@@ -306,10 +304,9 @@ export default function PublicClientReport() {
 
             {/* Period presets — hidden on mobile */}
             <div className="hidden md:flex items-center gap-1.5 flex-wrap justify-end">
-              {(["Hoje","7 dias","30 dias","Mês","3 meses"] as const).map((label, i) => {
-                const keys = ["today","7d","30d","month","3m"];
+              {PRESETS.map(({ id, label }) => {
                 return (
-                  <button key={label} onClick={() => applyPreset(keys[i])}
+                  <button key={id} onClick={() => applyPreset(id)}
                     className="px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors" style={{ background: theme.bgInput, border: `1px solid ${theme.bgBorder}`, color: theme.textSecondary }}>
                     {label}
                   </button>
@@ -338,10 +335,9 @@ export default function PublicClientReport() {
           {/* Mobile date panel */}
           {mobileMenuOpen && (
             <div className="md:hidden pb-3 pt-1 flex flex-wrap gap-1.5 items-center" style={{ borderTop: `1px solid ${theme.bgBorder}` }}>
-              {(["Hoje","7d","30d","Mês","3m"] as const).map((label, i) => {
-                const keys = ["today","7d","30d","month","3m"];
+              {PRESETS.map(({ id, label }) => {
                 return (
-                  <button key={label} onClick={() => { applyPreset(keys[i]); setMobileMenuOpen(false); }}
+                  <button key={id} onClick={() => { applyPreset(id); setMobileMenuOpen(false); }}
                     className="px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors" style={{ background: theme.bgInput, border: `1px solid ${theme.bgBorder}`, color: theme.textSecondary }}>
                     {label}
                   </button>
