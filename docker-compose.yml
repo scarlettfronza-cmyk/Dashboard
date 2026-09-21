@@ -1,0 +1,25 @@
+# Banco local para desenvolvimento e para restaurar o backup de produção.
+# Suba com:  docker compose up -d
+services:
+  db:
+    image: mysql:8.0
+    container_name: ads-dashboard-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-dev}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ads_dashboard}
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-dev}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  db-data:

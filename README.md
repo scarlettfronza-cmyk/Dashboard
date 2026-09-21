@@ -4,8 +4,10 @@ Plataforma multi-cliente para operação e relatórios de Meta Ads, vendas e con
 
 **Stack:** React 19 · TypeScript · Vite · Tailwind 4 · Express 4 · tRPC 11 · Drizzle ORM · MySQL/TiDB · Vitest · pnpm
 
+**Para rodar o projeto, comece por [`SETUP.md`](SETUP.md)** — banco, variáveis de
+ambiente, restauração do backup e reconexão do Meta fora da plataforma Manus.
+
 A documentação técnica completa está em [`handoff/HANDOFF_TECNICO.md`](handoff/HANDOFF_TECNICO.md).
-As variáveis de ambiente necessárias estão em [`handoff/ENVIRONMENT_TEMPLATE.md`](handoff/ENVIRONMENT_TEMPLATE.md).
 
 ## Experiências
 
@@ -18,15 +20,15 @@ As variáveis de ambiente necessárias estão em [`handoff/ENVIRONMENT_TEMPLATE.
 ## Como rodar
 
 ```bash
+docker compose up -d   # MySQL 8 local
+cp .env.example .env   # preencha os segredos (veja SETUP.md)
 pnpm install
-cp handoff/ENVIRONMENT_TEMPLATE.md /dev/null  # use-o como referência para o secret manager
-# defina as variáveis de ambiente no ambiente local (nunca commite .env)
-pnpm db:push      # aplica as migrações Drizzle
-pnpm dev          # desenvolvimento
-pnpm test         # testes Vitest
-pnpm check        # typecheck
-pnpm build        # build de produção
+pnpm db:push           # aplica as migrações Drizzle
+pnpm dev               # http://localhost:3000
 ```
+
+`pnpm test` roda a suíte Vitest, `pnpm check` o typecheck e `pnpm build` o build
+de produção.
 
 ## Origem deste repositório
 
