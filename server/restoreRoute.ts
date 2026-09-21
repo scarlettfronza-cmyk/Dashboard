@@ -51,7 +51,13 @@ export function registerRestoreRoute(app: Express) {
       if (!arquivo.ok) return res.status(400).json({ erro: arquivo.detalhe });
 
       const url = process.env.DATABASE_URL;
-      if (!url) return res.status(500).json({ erro: "O banco não está configurado neste ambiente." });
+      if (!url) {
+        // Mensagem acionável: a causa quase sempre é a variável não ter sido
+        // ligada ao banco na hospedagem, e o texto genérico não ajudava.
+        return res.status(500).json({
+          erro: "O banco não está ligado a este serviço. Defina DATABASE_URL nas variáveis de ambiente apontando para o banco — na Railway, o valor é ${{MySQL.MYSQL_URL}}.",
+        });
+      }
 
       let conn: mysql.Connection | undefined;
       try {

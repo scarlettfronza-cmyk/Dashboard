@@ -43,7 +43,16 @@ esperado, siga em frente.
 1. dentro do mesmo projeto, **New** → **Database** → **Add MySQL**
 2. espere ficar verde
 
-A Railway cria a variável `DATABASE_URL` sozinha e liga no sistema.
+**A hospedagem não liga o banco ao sistema sozinha.** É preciso dizer onde ele
+está: no serviço do sistema, aba **Variables**, acrescente
+
+```
+DATABASE_URL=${{MySQL.MYSQL_URL}}
+```
+
+Isso é uma referência, não um endereço: a hospedagem substitui pelo valor real.
+Troque `MySQL` pelo nome exato do card do banco, se for diferente. Sem essa
+variável o sistema sobe, mas nenhuma tela com dados funciona.
 
 ## 4. Preencher as variáveis
 
