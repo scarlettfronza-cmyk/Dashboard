@@ -535,7 +535,14 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
   let revenueSource: RevenueSourceType = "unavailable";
   let revenueUploadedAt: Date | null = null;
   let alcance = 0, cliquesEstimados = 0, custoPorClique = 0, custoPorLeadDireto = 0;
-  let campanhas: { mensagens: { investimento: number; leads: number; custoPorLead: number }; visitas: { investimento: number; alcance: number; custoPorVisita: number }; formulario: { investimento: number; cliques: number; custoPorClique: number } } | undefined;
+  let campanhas: {
+    mensagens: { investimento: number; leads: number; custoPorLead: number };
+    visitas: { investimento: number; alcance: number; custoPorVisita: number };
+    formulario: { investimento: number; cliques: number; custoPorClique: number };
+    video?: { investimento: number; visualizacoes: number; custoPorVisualizacao: number };
+    outros?: { investimento: number };
+  } | undefined;
+  let campanhasDetalhe: import('./metaApi').CampanhaDetalhe[] = [];
   let metaApiSuccess = false;
   let metaDataRef: import('./metaApi').MetaAdsData | null = null;
   const historicalMetaSource = getHistoricalMetaSourceConfig(sheetsIntegration?.extraConfig);
@@ -586,6 +593,15 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
             ? { investimento: metaData.formulario.investimento + r.formulario.investimento, cliques: metaData.formulario.cliques + r.formulario.cliques, custoPorClique: 0, leads: metaData.formulario.leads + r.formulario.leads, custoPorLead: 0 }
             : r.formulario;
         }
+        if (r.video) {
+          metaData.video = metaData.video
+            ? { investimento: metaData.video.investimento + r.video.investimento, visualizacoes: metaData.video.visualizacoes + r.video.visualizacoes, custoPorVisualizacao: 0 }
+            : r.video;
+        }
+        if (r.outros) {
+          metaData.outros = metaData.outros ? { investimento: metaData.outros.investimento + r.outros.investimento } : r.outros;
+        }
+        metaData.campanhasDetalhe = [...(metaData.campanhasDetalhe ?? []), ...(r.campanhasDetalhe ?? [])];
       }
       // Recalculate derived metrics after summing
       metaData.custoPorLead = metaData.leads > 0 ? metaData.investimento / metaData.leads : 0;
@@ -596,13 +612,17 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
         metaData.formulario.custoPorClique = metaData.formulario.cliques > 0 ? metaData.formulario.investimento / metaData.formulario.cliques : 0;
         metaData.formulario.custoPorLead = metaData.formulario.leads > 0 ? metaData.formulario.investimento / metaData.formulario.leads : 0;
       }
+      if (metaData.video) metaData.video.custoPorVisualizacao = metaData.video.visualizacoes > 0 ? metaData.video.investimento / metaData.video.visualizacoes : 0;
       investimento = metaData.investimento;
       leads = metaData.leads;
       alcance = metaData.alcance;
       cliquesEstimados = metaData.cliquesNoLink;
       custoPorClique = metaData.custoPorClique;
       custoPorLeadDireto = metaData.custoPorLead;
-      campanhas = metaData.mensagens || metaData.visitas || metaData.formulario ? { mensagens: metaData.mensagens, visitas: metaData.visitas, formulario: metaData.formulario } : undefined;
+      campanhas = metaData.mensagens || metaData.visitas || metaData.formulario
+        ? { mensagens: metaData.mensagens, visitas: metaData.visitas, formulario: metaData.formulario, video: metaData.video, outros: metaData.outros }
+        : undefined;
+      campanhasDetalhe = [...(metaData.campanhasDetalhe ?? [])].sort((a, b) => b.investimento - a.investimento);
       metaApiSuccess = true;
       novosSeguidores = metaData.novosSeguidores;
     } catch (apiErr: any) {
@@ -696,7 +716,7 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
   const commercialMetrics = calculateCommercialMetrics({ investimento, leads, consultas, fechamentos: vendas, totalConsultas, totalCirurgias, totalEmVendas });
   const revenueLineage = describeRevenueSource(revenueSource, revenueUploadedAt);
   const mediaLineage = buildMediaLineage(historicalMetaSource, useHistoricalMetaSheet && usedGoogleSheetMedia, metaApiSuccess && !useHistoricalMetaSheet, usedGoogleSheetMedia);
-  return { investimento, leads, consultas, vendas, totalEmVendas, totalCirurgias, totalConsultas, novosSeguidores, alcance, cliquesEstimados, custoPorClique, custoPorLeadDireto, campanhas, novosContatos, totalContatosMeta, conversasRespondidas, leadsInstagram, leadsWhatsapp, metaApiSuccess, mediaDataAvailable: metaApiSuccess || Boolean(sheetsIntegration?.accessToken), ...commercialMetrics, revenueLineage, mediaLineage };
+  return { investimento, leads, consultas, vendas, totalEmVendas, totalCirurgias, totalConsultas, novosSeguidores, alcance, cliquesEstimados, custoPorClique, custoPorLeadDireto, campanhas, campanhasDetalhe, novosContatos, totalContatosMeta, conversasRespondidas, leadsInstagram, leadsWhatsapp, metaApiSuccess, mediaDataAvailable: metaApiSuccess || Boolean(sheetsIntegration?.accessToken), ...commercialMetrics, revenueLineage, mediaLineage };
 }
 
 // ─── Dashboard Router ───────────────────────────────────────────────────

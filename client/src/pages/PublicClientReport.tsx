@@ -180,7 +180,9 @@ export default function PublicClientReport() {
     d.campanhas.mensagens && { name: "Mensagens", investimento: d.campanhas.mensagens.investimento ?? 0 },
     d.campanhas.visitas && { name: "Visitas", investimento: d.campanhas.visitas.investimento ?? 0 },
     d.campanhas.formulario && { name: "Formulário", investimento: d.campanhas.formulario.investimento ?? 0 },
-  ].filter(Boolean) : [];
+    d.campanhas.video && { name: "Vídeo", investimento: d.campanhas.video.investimento ?? 0 },
+    d.campanhas.outros && { name: "Outras", investimento: d.campanhas.outros.investimento ?? 0 },
+  ].filter((c: any) => c && c.investimento > 0) : [];
 
   // Manchete: o número mais forte do período. Com dado de mídia, o retorno;
   // sem ele, a receita — prometer ROAS sem investimento seria inventar.

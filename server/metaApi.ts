@@ -9,6 +9,7 @@ import axios from "axios";
 import {
   formLeadsFrom, reportedCostPer, blendCostPerLead, FORM_ACTIONS,
 } from "./metaLeadActions";
+import { classificarCampanha, type TipoCampanha } from "./classificarCampanha";
 
 const GRAPH_API_BASE = "https://graph.facebook.com/v19.0";
 
@@ -45,7 +46,29 @@ export interface MetaAdsData {
     leads: number;
     custoPorLead: number;
   };
+  video: {
+    investimento: number;
+    /** Reproduções de 3 s (`video_view`). */
+    visualizacoes: number;
+    custoPorVisualizacao: number;
+  };
+  /** Campanhas que não casaram com nenhuma gaveta — ficam à vista, não escondidas. */
+  outros: { investimento: number };
+  /** Uma linha por campanha, para conferir a classificação no painel. */
+  campanhasDetalhe: CampanhaDetalhe[];
 }
+
+export type CampanhaDetalhe = {
+  nome: string;
+  tipo: TipoCampanha;
+  objective: string | null;
+  investimento: number;
+  conversas: number;
+  leadsFormulario: number;
+  visualizacoes: number;
+  alcance: number;
+  cliques: number;
+};
 
 export interface InstagramInsightsData {
   novosSeguidores: number;
@@ -73,6 +96,7 @@ export async function fetchMetaAdsFromApi(
 
   const fields = [
     "campaign_name",
+    "objective",
     "spend",
     "reach",
     "actions",
@@ -185,13 +209,16 @@ export async function fetchMetaAdsFromApi(
   let formularioLeads = 0;
   let formularioCustoPonderado = 0;
   let formularioLeadsComCusto = 0;
+  let videoInvestimento = 0;
+  let videoVisualizacoes = 0;
+  let outrosInvestimento = 0;
+  const campanhasDetalhe: CampanhaDetalhe[] = [];
   let totalInstagramFollows = 0;
   let totalNovosContatos = 0;
   let totalTotalContatos = 0;
   let totalConversasRespondidas = 0;
 
   for (const campaign of campaigns) {
-    const name = (campaign.campaign_name ?? "").toUpperCase();
     const spend = parseFloat(campaign.spend ?? "0");
     const reach = parseInt(campaign.reach ?? "0", 10);
     const linkClicks = parseInt(campaign.inline_link_clicks ?? "0", 10);
@@ -235,12 +262,20 @@ export async function fetchMetaAdsFromApi(
       leadRows += msgConversations;
     }
 
-    // Classify campaign type
-    const isFormulario = name.includes("FORMULARIO") || name.includes("LINK FORMULARIO") || name.includes("[LINK]");
-    const isVisitas = name.includes("SEGUIDORA") || name.includes("SEGUIDOR");
-    const isMensagens = !isFormulario && !isVisitas;
+    const videoViewAction = actions.find(a => a.action_type === "video_view");
+    const videoViews = videoViewAction ? parseInt(videoViewAction.value, 10) : 0;
 
-    if (isFormulario) {
+    const tipo = classificarCampanha({
+      nome: campaign.campaign_name ?? "", objective: campaign.objective ?? null,
+      conversas: msgConversations, leadsFormulario: formLeads, visualizacoes: videoViews,
+    });
+    campanhasDetalhe.push({
+      nome: campaign.campaign_name ?? "", tipo, objective: campaign.objective ?? null,
+      investimento: spend, conversas: msgConversations, leadsFormulario: formLeads,
+      visualizacoes: videoViews, alcance: reach, cliques: linkClicks,
+    });
+
+    if (tipo === "formulario") {
       formularioInvestimento += spend;
       formularioCliques += linkClicks;
       formularioLeads += formLeads;
@@ -249,9 +284,14 @@ export async function fetchMetaAdsFromApi(
         formularioCustoPonderado += cpl * formLeads;
         formularioLeadsComCusto += formLeads;
       }
-    } else if (isVisitas) {
+    } else if (tipo === "visitas") {
       visitasInvestimento += spend;
       visitasAlcance += reach;
+    } else if (tipo === "video") {
+      videoInvestimento += spend;
+      videoVisualizacoes += videoViews;
+    } else if (tipo === "outros") {
+      outrosInvestimento += spend;
     } else {
       // mensagens (WPP, DIRECT, MAMO, CIRURGIA, etc.)
       mensagensInvestimento += spend;
@@ -299,6 +339,13 @@ export async function fetchMetaAdsFromApi(
         formularioInvestimento, formularioLeads,
       ),
     },
+    video: {
+      investimento: videoInvestimento,
+      visualizacoes: videoVisualizacoes,
+      custoPorVisualizacao: videoVisualizacoes > 0 ? videoInvestimento / videoVisualizacoes : 0,
+    },
+    outros: { investimento: outrosInvestimento },
+    campanhasDetalhe,
   };
 }
 

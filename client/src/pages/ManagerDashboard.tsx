@@ -29,14 +29,24 @@ interface CampanhasSplit {
   mensagens: { investimento: number; leads: number; custoPorLead: number };
   visitas: { investimento: number; alcance: number; custoPorVisita: number };
   formulario: { investimento: number; cliques: number; custoPorClique: number };
+  video?: { investimento: number; visualizacoes: number; custoPorVisualizacao: number };
+  outros?: { investimento: number };
 }
+type TipoCampanha = "mensagens" | "formulario" | "visitas" | "video" | "outros";
+interface CampanhaDetalhe {
+  nome: string; tipo: TipoCampanha; objective: string | null; investimento: number;
+  conversas: number; leadsFormulario: number; visualizacoes: number; alcance: number; cliques: number;
+}
+const ROTULO_TIPO: Record<TipoCampanha, string> = {
+  mensagens: "💬 Mensagens", formulario: "🔗 Formulário", visitas: "👁 Visitas", video: "🎬 Vídeo", outros: "❔ Outras",
+};
 interface KpiData {
   investimento: number; leads: number; consultas?: number; vendas: number;
   totalEmVendas: number; totalCirurgias?: number; totalConsultas?: number;
   receitaTotal?: number;
   revenueLineage?: { type: string; label: string; updatedAt: string | null; roasFormula: string };
   novosSeguidores: number; alcance?: number; cliquesEstimados?: number;
-  custoPorClique?: number; custoPorLeadDireto?: number; campanhas?: CampanhasSplit;
+  custoPorClique?: number; custoPorLeadDireto?: number; campanhas?: CampanhasSplit; campanhasDetalhe?: CampanhaDetalhe[];
   custoPorLead: number; taxaConversao: number; roas: number;
   custoPorVenda: number; custoPorConsulta: number; ticketMedio: number;
 }
@@ -769,7 +779,67 @@ export default function ManagerDashboard() {
                                 </div>
                               </div>
                             )}
+                            {(kpi.campanhas.video?.investimento ?? 0) > 0 && (
+                              <div className="shrink-0">
+                                <div className="flex items-center gap-2 mb-2"><span className="text-xs font-semibold text-muted-foreground">🎬 Vídeo</span></div>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <KpiCard label="Investimento" value={formatCurrency(kpi.campanhas.video!.investimento)} icon={DollarSign} gradient="linear-gradient(135deg, #E63946, #c1121f)" />
+                                  <KpiCard label="Visualizações" value={formatNumber(kpi.campanhas.video!.visualizacoes)} icon={Eye} />
+                                  {kpi.campanhas.video!.custoPorVisualizacao > 0 ? <KpiCard label="Custo/View" value={formatCurrency(kpi.campanhas.video!.custoPorVisualizacao)} icon={Target} /> : <div />}
+                                </div>
+                              </div>
+                            )}
+                            {(kpi.campanhas.outros?.investimento ?? 0) > 0 && (
+                              <div className="shrink-0">
+                                <div className="flex items-center gap-2 mb-2"><span className="text-xs font-semibold text-muted-foreground">❔ Outras (sem tipo reconhecido)</span></div>
+                                <div className="grid grid-cols-1 gap-2">
+                                  <KpiCard label="Investimento" value={formatCurrency(kpi.campanhas.outros!.investimento)} icon={DollarSign} />
+                                </div>
+                              </div>
+                            )}
                           </div>
+
+                          {/* Uma linha por campanha: é aqui que a gestora confere se cada
+                              uma caiu na gaveta certa. O tipo vem do nome, do objetivo no
+                              Meta ou do resultado gerado, nessa ordem. */}
+                          {(kpi.campanhasDetalhe?.length ?? 0) > 0 && (
+                            <div className="rounded-xl border border-border overflow-hidden">
+                              <div className="px-4 py-2.5 border-b border-border flex items-baseline justify-between gap-3 flex-wrap">
+                                <p className="text-xs font-semibold">Campanhas do período · como cada uma foi classificada</p>
+                                <p className="text-[11px] text-muted-foreground">O tipo sai do nome da campanha; se o nome não diz, do objetivo no Meta; senão, do que ela gerou.</p>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
+                                  <thead>
+                                    <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                      <th className="text-left px-4 py-2 font-semibold">Campanha</th>
+                                      <th className="text-left px-3 py-2 font-semibold">Tipo</th>
+                                      <th className="text-left px-3 py-2 font-semibold">Objetivo (Meta)</th>
+                                      <th className="text-right px-3 py-2 font-semibold">Investimento</th>
+                                      <th className="text-right px-3 py-2 font-semibold">Conversas</th>
+                                      <th className="text-right px-3 py-2 font-semibold">Leads form.</th>
+                                      <th className="text-right px-3 py-2 font-semibold">Views</th>
+                                      <th className="text-right px-4 py-2 font-semibold">Alcance</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {kpi.campanhasDetalhe!.map((c, i) => (
+                                      <tr key={`${c.nome}-${i}`} className="border-t border-border/60">
+                                        <td className="px-4 py-2 max-w-[320px] truncate" title={c.nome}>{c.nome || "(sem nome)"}</td>
+                                        <td className="px-3 py-2 whitespace-nowrap">{ROTULO_TIPO[c.tipo] ?? c.tipo}</td>
+                                        <td className="px-3 py-2 text-muted-foreground whitespace-nowrap">{c.objective?.replace(/^OUTCOME_/, "").toLowerCase() ?? "—"}</td>
+                                        <td className="px-3 py-2 text-right whitespace-nowrap">{formatCurrency(c.investimento)}</td>
+                                        <td className="px-3 py-2 text-right">{c.conversas ? formatNumber(c.conversas) : "—"}</td>
+                                        <td className="px-3 py-2 text-right">{c.leadsFormulario ? formatNumber(c.leadsFormulario) : "—"}</td>
+                                        <td className="px-3 py-2 text-right">{c.visualizacoes ? formatNumber(c.visualizacoes) : "—"}</td>
+                                        <td className="px-4 py-2 text-right">{c.alcance ? formatNumber(c.alcance) : "—"}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
 
