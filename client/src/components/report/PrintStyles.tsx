@@ -12,6 +12,7 @@
 export function PrintStyles({ fundo }: { fundo: string }) {
   return (
     <style>{`
+      [data-print="only"] { display: none; }
       @media print {
         @page { margin: 0; size: A4; }
         html, body {
@@ -20,6 +21,7 @@ export function PrintStyles({ fundo }: { fundo: string }) {
           print-color-adjust: exact;
         }
         [data-print="hide"] { display: none !important; }
+        [data-print="only"] { display: block !important; }
         [data-print="page"] { padding: 12mm 11mm !important; max-width: none !important; }
         section, .rounded-2xl, .rounded-xl { break-inside: avoid; }
         a { text-decoration: none !important; }

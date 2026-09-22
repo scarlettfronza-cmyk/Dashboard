@@ -4,6 +4,7 @@
  * Os dados vêm de `public.getPublicInstagramInsights`, que já existia no
  * servidor sem nenhuma tela consumindo.
  */
+import { Eyebrow, Statement } from "./ReportNarrative";
 
 export type IgTotals = {
   novosSeguidores: number;
@@ -48,13 +49,16 @@ export function InstagramProfile({ totals, username, accentColor, periodLabel, t
   ];
 
   return (
-    <section className="mb-8">
-      <div className="flex items-baseline gap-2 mb-4">
-        <h3 className="text-base font-bold" style={{ color: t.textPrimary }}>Perfil no Instagram</h3>
-        {username && (
-          <span className="text-xs font-medium" style={{ color: t.textMuted }}>@{username}</span>
-        )}
-      </div>
+    <section>
+      <Eyebrow accentColor={accentColor}>Perfil no Instagram</Eyebrow>
+      <Statement t={t}>
+        {n(totals.novosSeguidores)} novos seguidores e {n(totals.profileVisits)} visitas ao perfil.
+      </Statement>
+      {username && (
+        <p className="text-[12.5px] m-0 mb-4" style={{ color: t.textMuted, marginTop: -6 }}>
+          @{username} · dados do perfil, não dos anúncios. Não somar com o alcance do tráfego.
+        </p>
+      )}
 
       <div className="grid gap-3 md:grid-cols-3 mb-3">
         {/* Seguidores — o número que a clínica acompanha */}
@@ -72,7 +76,7 @@ export function InstagramProfile({ totals, username, accentColor, periodLabel, t
             <p className="text-sm font-semibold mt-2" style={{ color: ganhou ? accentColor : t.textSecondary }}>
               {ganhou ? "+" : ""}{n(totals.novosSeguidores)}
               {pct !== null && (
-                <span className="font-normal"> · {ganhou ? "+" : ""}{pct.toFixed(1)}%</span>
+                <span className="font-normal"> · {ganhou ? "+" : ""}{pct.toFixed(1).replace(".", ",")}%</span>
               )}
             </p>
           )}

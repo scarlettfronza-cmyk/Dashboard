@@ -1,17 +1,21 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams } from "wouter";
 import { trpc } from "@/lib/trpc";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { InstagramProfile } from "@/components/report/InstagramProfile";
 import { TopContent } from "@/components/report/TopContent";
-import { Trafego, Perfil, Comercial } from "@/components/report/ResultsMetrics";
+import { Trafego, Comercial, Bloco } from "@/components/report/ResultsMetrics";
 import { Capa, Eyebrow, Statement, Texto, Destaque } from "@/components/report/ReportNarrative";
 import { PrintStyles } from "@/components/report/PrintStyles";
 import { lerPeriodo } from "@/lib/analiseRelatorio";
 import { PeriodPicker } from "@/components/report/PeriodPicker";
 import { lerPeriodoDaUrl } from "@shared/whatsappRelatorio";
+
+const AGENCIA = "Digital Escarlate";
+const GESTORA = "Scarlett Fronza";
+const SITE = "digitalescarlate.com";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function formatDate(d: Date) {
@@ -19,11 +23,6 @@ function formatDate(d: Date) {
 }
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-function addDays(d: Date, n: number) {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n);
-  return r;
 }
 
 const MONTHS_FULL = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -51,28 +50,7 @@ const DARK_THEME = {
   kpiGrad2: "linear-gradient(135deg, oklch(0.20 0.08 25), oklch(0.14 0.05 25))",
   badgeBg: "oklch(0.18 0.08 25)",
   badgeText: "oklch(0.75 0.18 25)",
-};
-const LIGHT_THEME = {
-  bg: "#f1f5f9",
-  bgCard: "#ffffff",
-  bgHeader: "#ffffff",
-  bgBorder: "#e2e8f0",
-  bgHover: "#f8fafc",
-  bgInput: "#f8fafc",
-  textPrimary: "#0f172a",
-  textSecondary: "#334155",
-  textMuted: "#64748b",
-  accent: "#6366f1",
-  accentHex: "#6366f1",
-  accentBg: "#eef2ff",
-  gridColor: "#e2e8f0",
-  axisColor: "#94a3b8",
-  tooltipBg: "#ffffff",
-  tooltipBorder: "#e2e8f0",
-  kpiGrad: "linear-gradient(135deg, #6366f1, #4f46e5)",
-  kpiGrad2: "linear-gradient(135deg, #10b981, #059669)",
-  badgeBg: "#eef2ff",
-  badgeText: "#4f46e5",
+  chart: "#3987e5",
 };
 type ReportTheme = typeof DARK_THEME;
 
@@ -81,41 +59,6 @@ function fmt(n: number | null | undefined, prefix = "") {
   if (n == null || isNaN(n as number)) return "—";
   if (prefix === "R$") return `R$ ${(n as number).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return (n as number).toLocaleString("pt-BR");
-}
-
-// ─── KPI Card (light) ─────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, gradient, icon, t }: {
-  label: string; value: string; sub?: string; gradient?: string; icon?: string; t?: ReportTheme;
-}) {
-  if (gradient) {
-    return (
-      <div className="rounded-2xl p-4 flex flex-col gap-1 text-white" style={{ background: gradient }}>
-        {icon && <span className="text-2xl mb-0.5">{icon}</span>}
-        <p className="text-[10px] uppercase tracking-widest font-semibold opacity-80">{label}</p>
-        <p className="text-2xl font-bold tracking-tight">{value}</p>
-        {sub && <p className="text-[10px] opacity-70 mt-0.5">{sub}</p>}
-      </div>
-    );
-  }
-  const theme = t ?? DARK_THEME;
-  return (
-    <div className="rounded-2xl p-4 flex flex-col gap-1" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-      {icon && <span className="text-xl mb-0.5">{icon}</span>}
-      <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: theme.textMuted }}>{label}</p>
-      <p className="text-2xl font-bold tracking-tight" style={{ color: theme.textPrimary }}>{value}</p>
-      {sub && <p className="text-[10px] mt-0.5" style={{ color: theme.textMuted }}>{sub}</p>}
-    </div>
-  );
-}
-
-function SmallKpi({ label, value, accent, t }: { label: string; value: string; accent?: string; t?: ReportTheme }) {
-  const theme = t ?? DARK_THEME;
-  return (
-    <div className="rounded-xl p-3 flex flex-col gap-0.5" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-      <p className="text-[10px] uppercase tracking-widest font-medium" style={{ color: theme.textMuted }}>{label}</p>
-      <p className="text-base font-bold" style={{ color: accent || theme.textPrimary }}>{value}</p>
-    </div>
-  );
 }
 
 // ─── Custom Tooltip ─────────────────────────────────────────────────────────────────────────────
@@ -136,17 +79,11 @@ function CustomTooltip({ active, payload, label, t }: any) {
   );
 }
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
-const TABS = ["Resultados", "Conteúdos"] as const;
-type Tab = typeof TABS[number];
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function PublicClientReport() {
   const params = useParams<{ token: string }>();
   const token = params.token;
   const managerToken = typeof window !== "undefined" ? localStorage.getItem("manager_token") ?? undefined : undefined;
-  const [activeTab, setActiveTab] = useState<Tab>("Resultados");
-  const tabsRef = useRef<HTMLDivElement>(null);
 
   const now = new Date();
   // O link mandado no WhatsApp traz o período analisado (?de=&ate=); sem
@@ -182,7 +119,7 @@ export default function PublicClientReport() {
   );
   const { data: postsData, isLoading: postsLoading } = (trpc as any).public.getPublicTopPosts.useQuery(
     { token, limit: 8, managerToken },
-    { enabled: !!clientInfo?.igUsername && activeTab === "Conteúdos" }
+    { enabled: !!clientInfo?.igUsername }
   );
   const { data: igInsights, isLoading: igInsightsLoading } = (trpc as any).public.getPublicInstagramInsights.useQuery(
     { token, from: dateRange.from, to: dateRange.to, managerToken },
@@ -190,7 +127,7 @@ export default function PublicClientReport() {
   );
   const { data: publicCreativesData, isLoading: publicCreativesLoading } = (trpc as any).public.getPublicCreatives.useQuery(
     { token, from: dateRange.from, to: dateRange.to, managerToken },
-    { enabled: !!clientInfo?.id && activeTab === "Resultados" }
+    { enabled: !!clientInfo?.id }
   );
 
   // ── Loading / Error states ─────────────────────────────────────────────────
@@ -218,24 +155,11 @@ export default function PublicClientReport() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const d = dashData as any;
-  const reportTheme = (clientInfo as any).reportTheme ?? "dark";
-  const theme: ReportTheme = reportTheme === "light" ? LIGHT_THEME : DARK_THEME;
-  const accentColor = clientInfo.brandColor || theme.accentHex;
-
-  // Generate color variants from accentColor
-  function adjHex(hex: string, factor: number): string {
-    try {
-      const h = hex.replace(/^#/, "").padEnd(6, "0");
-      const r = parseInt(h.slice(0,2),16), g = parseInt(h.slice(2,4),16), b = parseInt(h.slice(4,6),16);
-      const c = (v: number) => Math.min(255, Math.max(0, Math.round(v * factor))).toString(16).padStart(2,"0");
-      return `#${c(r)}${c(g)}${c(b)}`;
-    } catch { return hex; }
-  }
-  const ac = accentColor.startsWith("#") ? accentColor : "#e63946";
-  const grad1 = `linear-gradient(135deg, ${ac} 0%, ${adjHex(ac, 0.65)} 100%)`;
-  const grad2 = `linear-gradient(135deg, ${adjHex(ac, 0.80)} 0%, ${adjHex(ac, 0.55)} 100%)`;
-  const grad3 = `linear-gradient(135deg, ${adjHex(ac, 1.20)} 0%, ${ac} 100%)`;
-  const grad4 = `linear-gradient(135deg, ${adjHex(ac, 0.90)} 0%, ${adjHex(ac, 0.70)} 100%)`;
+  // Um único visual, o da agência: fundo preto, vermelho escarlate e
+  // branco/cinza. A cor e o tema por cliente que existiam antes saíram
+  // para o relatório ser reconhecível como peça da Digital Escarlate.
+  const theme: ReportTheme = DARK_THEME;
+  const accentColor = theme.accentHex;
 
   const totalVendas = d ? (d.receitaTotal ?? (((d.totalConsultas ?? 0) + (d.totalCirurgias ?? 0)) || (d.totalEmVendas ?? 0))) : 0;
   const roas = d?.roas ?? 0;
@@ -252,18 +176,12 @@ export default function PublicClientReport() {
     d.campanhas.formulario && { name: "Formulário", investimento: d.campanhas.formulario.investimento ?? 0 },
   ].filter(Boolean) : [];
 
-  const funilData = d ? [
-    { name: "Leads", value: d.leads ?? 0, color: accentColor },
-    { name: "Consultas", value: d.consultas ?? 0, color: adjHex(ac, 0.80) },
-    { name: "Fechamentos", value: d.vendas ?? 0, color: adjHex(ac, 0.60) },
-  ] : [];
-
   // Manchete: o número mais forte do período. Com dado de mídia, o retorno;
   // sem ele, a receita — prometer ROAS sem investimento seria inventar.
   const manchete = (() => {
     const temMidia = Boolean(d?.mediaDataAvailable) && (d?.investimento ?? 0) > 0;
     if (temMidia && roas > 0) {
-      return { linha1: `${fmt(totalVendas, "R$")} em receita,`, linha2: `${roas.toFixed(2)}x de retorno.` };
+      return { linha1: `${fmt(totalVendas, "R$")} em receita,`, linha2: `${roas.toFixed(2).replace(".", ",")}x de retorno.` };
     }
     if (totalVendas > 0) {
       return { linha1: `${fmt(d?.vendas ?? 0)} procedimentos fechados,`, linha2: `${fmt(totalVendas, "R$")} em receita.` };
@@ -287,503 +205,217 @@ export default function PublicClientReport() {
     return `${MONTHS_CAL[f.getMonth()]} – ${MONTHS_CAL[t.getMonth()]} ${t.getFullYear()}`;
   })();
 
+  const consultas = d?.consultas ?? 0;
+  const leads = d?.leads ?? 0;
+  const vendas = d?.vendas ?? 0;
+  const geradoEm = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(now);
+
   return (
     <div className="min-h-screen" style={{ background: theme.bg, fontFamily: "'Inter', sans-serif" }}>
       <PrintStyles fundo={theme.bg} />
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30" data-print="hide" style={{ background: theme.bgHeader, borderBottom: `1px solid ${theme.bgBorder}` }}>
+      {/* ── Cabeçalho: marca da agência e período ──────────────────────────
+          É a "cabeça" do PDF aprovado: o nome da agência à esquerda, a
+          gestora embaixo, o período à direita. Na tela o período é o botão
+          do calendário; no papel vira só o texto. */}
+      <header className="sticky top-0 z-30" style={{ background: theme.bgHeader, borderBottom: `1px solid ${theme.bgBorder}` }}>
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex items-center justify-between h-14 gap-3">
-            {/* Brand */}
-            <div className="flex items-center gap-2.5 min-w-0">
-              {clientInfo.logoUrl ? (
-                <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 bg-gray-100">
-                  <img src={clientInfo.logoUrl} alt={clientInfo.name} className="w-full h-full object-contain" />
-                </div>
-              ) : (
-                <div className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center text-sm font-bold text-white"
-                  style={{ background: accentColor }}>
-                  {clientInfo.name.charAt(0)}
-                </div>
-              )}
-              <div className="min-w-0">
-                <h1 className="text-sm font-bold truncate" style={{ color: theme.textPrimary }}>{clientInfo.name}</h1>
-                <div className="flex items-center gap-1.5">
-                  <p className="text-[10px]" style={{ color: theme.textMuted }}>Relatório de Desempenho</p>
-                  {mondayAutoSyncing && (
-                    <span className="flex items-center gap-1 text-[10px] animate-pulse" style={{ color: theme.accent }}>
-                      <svg className="w-2.5 h-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                      </svg>
-                      Atualizando...
-                    </span>
-                  )}
-                </div>
+            <div className="min-w-0 leading-tight">
+              <p className="text-[11px] sm:text-[12px] font-bold uppercase m-0 whitespace-nowrap truncate" style={{ color: theme.textPrimary, letterSpacing: ".18em" }}>
+                {AGENCIA}
+              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] uppercase m-0" style={{ color: theme.textMuted, letterSpacing: ".18em" }}>{GESTORA}</p>
+                {mondayAutoSyncing && (
+                  <span data-print="hide" className="flex items-center gap-1 text-[10px] animate-pulse" style={{ color: theme.accent }}>
+                    <svg className="w-2.5 h-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Atualizando...
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Period presets — hidden on mobile */}
-            {/* Seletor de período: um botão que abre o calendário de intervalo.
-                Substitui a fileira de presets mais dois campos de data, que
-                ocupava o cabeçalho inteiro e ainda exigia dois seletores
-                separados para um intervalo qualquer. */}
-            <PeriodPicker
-              from={fromDate}
-              to={toDate}
-              onChange={(f, t) => { setFromDate(f); setToDate(t); }}
-              accentColor={accentColor}
-              maxDate={startOfDay(now)}
-              t={theme}
-            />
-          </div>
-
-          {/* Tabs — horizontal scroll on mobile */}
-          <div ref={tabsRef} className="flex gap-0 overflow-x-auto scrollbar-none -mb-px" style={{ borderTop: `1px solid ${theme.bgBorder}` }}>
-            {TABS.map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`px-3 py-2.5 text-[11px] font-semibold border-b-2 whitespace-nowrap transition-colors flex-shrink-0 ${
-                  activeTab === tab ? "border-current" : "border-transparent hover:opacity-80"
-                }`}
-                style={activeTab === tab ? { borderColor: accentColor, color: accentColor } : { color: theme.textMuted }}>
-                {tab}
-              </button>
-            ))}
+            <div data-print="hide" className="flex-shrink-0">
+              <PeriodPicker
+                from={fromDate}
+                to={toDate}
+                onChange={(f, t) => { setFromDate(f); setToDate(t); }}
+                accentColor={accentColor}
+                maxDate={startOfDay(now)}
+                t={theme}
+              />
+            </div>
+            <p data-print="only" className="text-xs m-0" style={{ color: theme.textMuted }}>{periodLabel}</p>
           </div>
         </div>
       </header>
 
-      {/* ── Main Content ───────────────────────────────────────────────────── */}
-      <main className="max-w-5xl mx-auto px-4 py-6" data-print="page" style={{ color: theme.textPrimary }}>
-        {/* Period label */}
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-lg font-bold" style={{ color: theme.textPrimary }}>{activeTab}</h2>
-            <p className="text-xs mt-0.5" style={{ color: theme.textMuted }}>{periodLabel}</p>
-          </div>
-          {d && !loadingDash && (
-            <div className="flex items-center gap-1.5 text-xs text-emerald-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Atualizado
-            </div>
-          )}
-        </div>
-
+      {/* ── Conteúdo: um fluxo só, na ordem do PDF ─────────────────────────
+          Sem abas: o cliente lê de cima a baixo e o "salvar em PDF" do
+          navegador pega tudo. Capa → resultado comercial → tráfego →
+          perfil → conteúdos → funil → investimento → análise →
+          recomendação → próximos passos → anúncios no ar. */}
+      <main className="max-w-5xl mx-auto px-4 pt-8 pb-6" data-print="page" style={{ color: theme.textPrimary }}>
         {loadingDash ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[...Array(8)].map((_, i) => <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: theme.bgInput }} />)}
+          <div className="space-y-4">
+            <div className="h-10 w-2/3 rounded-xl animate-pulse" style={{ background: theme.bgInput }} />
+            <div className="h-10 w-1/2 rounded-xl animate-pulse" style={{ background: theme.bgInput }} />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6">
+              {[...Array(4)].map((_, i) => <div key={i} className="h-28 rounded-xl animate-pulse" style={{ background: theme.bgInput }} />)}
+            </div>
           </div>
         ) : d ? (
-          <>
-            {/* ── RESULTADOS ───────────────────────────────────────────────── */}
-            {activeTab === "Resultados" && (
-              <div className="space-y-6">
-                {/* Capa: manchete com o número mais forte do período. */}
-                <Capa
-                  manchete={manchete.linha1}
-                  destaque={manchete.linha2}
-                  subtitulo={`Leitura de ${periodLabel}, com os resultados de mídia, perfil e comercial.`}
-                  cliente={clientInfo.name}
-                  periodo={periodLabel}
-                  accentColor={accentColor}
-                  t={theme}
-                />
+          <div className="space-y-12">
+            <Capa
+              manchete={manchete.linha1}
+              destaque={manchete.linha2}
+              subtitulo={`Leitura de ${periodLabel}, com os resultados de mídia, perfil e comercial.`}
+              cliente={clientInfo.name}
+              periodo={periodLabel}
+              accentColor={accentColor}
+              t={theme}
+            />
 
-                {/* ── Métricas do período ─────────────────────────────────── */}
-                <Trafego
-                  investimento={d.investimento ?? 0}
-                  leads={d.leads ?? 0}
-                  leadsMensagem={d.campanhas?.mensagens?.leads ?? 0}
-                  leadsFormulario={d.campanhas?.formulario?.leads ?? 0}
-                  cplMensagem={d.campanhas?.mensagens?.custoPorLead ?? custoPorLead}
-                  cplFormulario={d.campanhas?.formulario?.custoPorLead ?? 0}
-                  alcance={d.alcance ?? 0}
-                  cliquesNoLink={d.cliquesEstimados ?? 0}
-                  accentColor={accentColor}
-                  t={theme}
-                />
+            <Comercial
+              roas={roas}
+              receita={totalVendas}
+              ticketMedio={ticketMedio}
+              consultasAgendadas={consultas}
+              vendas={vendas}
+              accentColor={accentColor}
+              t={theme}
+            />
 
-                {igInsights?.connected && igInsights?.totals && (
-                  <Perfil
-                    novosSeguidores={igInsights.totals.novosSeguidores ?? 0}
-                    visitasAoPerfil={igInsights.totals.profileVisits ?? 0}
-                    cliquesNoLinkBio={igInsights.totals.interactions ?? 0}
-                    t={theme}
-                  />
-                )}
+            <Trafego
+              investimento={d.investimento ?? 0}
+              leads={leads}
+              leadsMensagem={d.campanhas?.mensagens?.leads ?? 0}
+              leadsFormulario={d.campanhas?.formulario?.leads ?? 0}
+              cplMensagem={d.campanhas?.mensagens?.custoPorLead ?? custoPorLead}
+              cplFormulario={d.campanhas?.formulario?.custoPorLead ?? 0}
+              alcance={d.alcance ?? 0}
+              cliquesNoLink={d.cliquesEstimados ?? 0}
+              accentColor={accentColor}
+              t={theme}
+            />
 
-                <Comercial
-                  roas={roas}
-                  receita={totalVendas}
-                  ticketMedio={ticketMedio}
-                  consultasAgendadas={d.consultas ?? 0}
-                  vendas={d.vendas ?? 0}
-                  accentColor={accentColor}
-                  t={theme}
-                />
-
-                {/* ── Leitura do período ──────────────────────────────────── */}
-                {leitura.analise.length > 0 && (
-                  <section>
-                    <Eyebrow accentColor={accentColor}>Análise</Eyebrow>
-                    <Statement t={theme}>O que os números dizem.</Statement>
-                    <Texto paragrafos={leitura.analise} t={theme} />
-                  </section>
-                )}
-
-                <section>
-                  <Eyebrow accentColor={accentColor}>Recomendação</Eyebrow>
-                  <Statement t={theme}>Para onde olhar agora.</Statement>
-                  <Destaque paragrafos={leitura.recomendacao} accentColor={accentColor} t={theme} />
-                </section>
-
-                {clientInfo.proximosPassos && (
-                  <section>
-                    <Eyebrow accentColor={accentColor}>Próximos passos</Eyebrow>
-                    <Texto paragrafos={[clientInfo.proximosPassos]} t={theme} />
-                  </section>
-                )}
-
-
-                <div className="px-1 py-1 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between" style={{ color: theme.textMuted }}>
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: theme.textMuted }}>Dados comerciais</p>
-                    <p className="text-xs font-semibold mt-0.5" style={{ color: theme.textSecondary }}>{revenueLineage?.label ?? "Sem base comercial disponível no período"}</p>
-                  </div>
-                  <div className="text-[10px] sm:text-right" style={{ color: theme.textMuted }}>
-                    {revenueUpdatedAt && <p className="mt-0.5">Atualizado em {revenueUpdatedAt}</p>}
-                  </div>
-                </div>
-
-                {/* Chart */}
-                {campanhaData.length > 0 && (
-                  <div className="rounded-2xl p-5" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                    <h3 className="text-sm font-semibold mb-4" style={{ color: theme.textSecondary }}>Investimento por tipo de campanha</h3>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <BarChart data={campanhaData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-                        <XAxis dataKey="name" tick={{ fill: theme.axisColor, fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fill: theme.axisColor, fontSize: 10 }} axisLine={false} tickLine={false}
-                          tickFormatter={v => `R$${v >= 1000 ? (v/1000).toFixed(0)+"k" : v}`} />
-                        <Tooltip content={<CustomTooltip t={theme} />} />
-                        <Bar dataKey="investimento" name="Investimento" radius={[6, 6, 0, 0]} fill={accentColor} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-
-                <div className="rounded-2xl p-5" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold" style={{ color: theme.textPrimary }}>Funil de resultados</h3>
-                    <p className="text-xs mt-1" style={{ color: theme.textMuted }}>Resumo agregado sem expor contatos ou informações pessoais do CRM.</p>
-                  </div>
-                  <div className="space-y-4">
-                    {[
-                      { label: "Leads captados", value: d.leads ?? 0, width: 100, detail: "Base do funil" },
-                      { label: "Consultas realizadas", value: d.consultas ?? 0, width: d.leads > 0 ? ((d.consultas ?? 0) / d.leads) * 100 : 0, detail: d.leads > 0 ? `${(((d.consultas ?? 0) / d.leads) * 100).toFixed(1)}% dos leads` : "Sem base de leads" },
-                      { label: "Negócios fechados", value: d.vendas ?? 0, width: d.leads > 0 ? ((d.vendas ?? 0) / d.leads) * 100 : 0, detail: (d.consultas ?? 0) > 0 ? `${((d.vendas / d.consultas) * 100).toFixed(1)}% das consultas` : "Sem consultas registradas" },
-                    ].map((item) => (
-                      <div key={item.label}>
-                        <div className="flex items-baseline justify-between gap-3 mb-2">
-                          <div>
-                            <p className="text-sm font-semibold" style={{ color: theme.textSecondary }}>{item.label}</p>
-                            <p className="text-[10px] mt-0.5" style={{ color: theme.textMuted }}>{item.detail}</p>
-                          </div>
-                          <p className="text-lg font-bold" style={{ color: theme.textPrimary }}>{fmt(item.value)}</p>
-                        </div>
-                        <div className="h-2.5 rounded-full overflow-hidden" style={{ background: theme.bgInput }}>
-                          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(item.width, item.value > 0 ? 2 : 0)}%`, background: accentColor }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-5">
-                    <h3 className="text-base font-bold" style={{ color: theme.textPrimary }}>Anúncios no ar</h3>
-                    <p className="text-xs mt-0.5" style={{ color: theme.textMuted }}>As peças que estão sendo veiculadas em nome da clínica neste período.</p>
-                  </div>
-                  {publicCreativesLoading ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">{[...Array(8)].map((_, i) => <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{ background: theme.bgInput }} />)}</div>
-                  ) : publicCreativesData?.error === "meta_not_configured" ? (
-                    <div className="text-center py-10 rounded-2xl border-2 border-dashed" style={{ borderColor: theme.bgBorder }}>
-                      <p className="text-sm" style={{ color: theme.textMuted }}>Meta Ads não configurado para este cliente.</p>
-                    </div>
-                  ) : publicCreativesData?.creatives?.length ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                      {(publicCreativesData.creatives as any[]).map((cr: any) => (
-                        <div key={cr.adId} className="rounded-xl overflow-hidden" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                          <div className="relative aspect-square overflow-hidden" style={{ background: theme.bgInput }}>
-                            {cr.thumbnailUrl ? (
-                              <img src={cr.thumbnailUrl} alt={cr.adName} className="w-full h-full object-contain" loading="lazy" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-3xl" style={{ color: theme.textMuted }}>
-                                {cr.format === "video" ? "🎥" : cr.format === "carousel" ? "📷" : "🖼️"}
-                              </div>
-                            )}
-                            <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-black/60 text-white">
-                              {cr.format === "video" ? "Vídeo" : cr.format === "carousel" ? "Carrossel" : "Imagem"}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-10 rounded-2xl border-2 border-dashed" style={{ borderColor: theme.bgBorder }}>
-                      <p className="text-sm" style={{ color: theme.textMuted }}>Nenhum anúncio ativo encontrado para este período.</p>
-                    </div>
-                  )}
-                </div>
-
+            {clientInfo.igUsername && (igInsightsLoading || postsLoading) && (
+              <div className="grid gap-3 md:grid-cols-3">
+                {[...Array(3)].map((_, i) => <div key={i} className="h-28 rounded-xl animate-pulse" style={{ background: theme.bgInput }} />)}
               </div>
             )}
-
-            {/* ── META ADS ─────────────────────────────────────────────────── */}
-            {false && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <KpiCard label="Investimento" value={fmt(d.investimento, "R$")}
-                    gradient={grad1} icon="💰" />
-                  <KpiCard label="Leads (WPP)" value={fmt(d.leads)} sub="Conversas iniciadas"
-                    gradient={grad2} icon="💬" />
-                  <KpiCard label="CPL Médio" value={fmt(custoPorLead, "R$")}
-                    gradient={grad3} icon="📊" />
-                  <KpiCard label="Alcance" value={fmt(d.alcance)} sub="Pessoas alcançadas"
-                    gradient={grad4} icon="👥" />
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  <SmallKpi label="Cliques no Link" value={fmt(d.cliquesEstimados)} />
-                  <SmallKpi label="Custo/Clique" value={fmt(d.custoPorClique, "R$")} accent="#10b981" />
-                  {d.campanhas?.visitas && <SmallKpi label="Visitas ao Perfil" value={fmt(d.campanhas.visitas.alcance)} />}
-                  {d.campanhas?.visitas && <SmallKpi label="Custo/Visita" value={fmt(d.campanhas.visitas.custoPorVisita, "R$")} accent="#10b981" />}
-                </div>
-                {campanhaData.length > 0 && (
-                  <div className="rounded-2xl p-5" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                    <h3 className="text-sm font-semibold mb-4" style={{ color: theme.textSecondary }}>Distribuição por campanha</h3>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={campanhaData} layout="vertical" margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
-                        <XAxis type="number" tick={{ fill: theme.axisColor, fontSize: 10 }} axisLine={false} tickLine={false}
-                          tickFormatter={v => `R$${v >= 1000 ? (v/1000).toFixed(0)+"k" : v}`} />
-                        <YAxis type="category" dataKey="name" tick={{ fill: theme.axisColor, fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
-                        <Tooltip content={<CustomTooltip t={theme} />} />
-                        <Bar dataKey="investimento" name="Investimento" radius={[0, 6, 6, 0]} fill={accentColor} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
+            {!igInsightsLoading && igInsights?.connected && igInsights?.totals && (
+              <InstagramProfile totals={igInsights.totals} username={igInsights.username} accentColor={accentColor} periodLabel={periodLabel} t={theme} />
+            )}
+            {!postsLoading && postsData?.posts?.length > 0 && (
+              <TopContent posts={postsData.posts} accentColor={accentColor} t={theme} />
             )}
 
-            {/* ── CRM & VENDAS ─────────────────────────────────────────────── */}
-            {false && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <KpiCard label="Receita Total" value={fmt(totalVendas, "R$")} sub={`${d.vendas ?? 0} fechamentos`}
-                    gradient={grad1} icon="💰" />
-                  <KpiCard label="ROAS"
-                    value={roas > 0 ? `${roas.toFixed(1)}x` : "—"}
-                    gradient={grad2}
-                    icon="⚡" />
-                  <KpiCard label="Ticket Médio" value={fmt(ticketMedio, "R$")}
-                    gradient={grad3} icon="🎯" />
-                  <KpiCard label="Fechamentos" value={fmt(d.vendas)}
-                    gradient={grad4} icon="✅" />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <SmallKpi label="Consultas" value={fmt(d.consultas ?? 0)} />
-                  <SmallKpi label="Custo/Venda" value={fmt(d.custoPorVenda, "R$")} accent="#10b981" />
-                  <SmallKpi label="Taxa Conversão" value={d.taxaConversao != null ? `${(d.taxaConversao as number).toFixed(1)}%` : "—"} accent="#6366f1" />
-                </div>
-                {(d.totalConsultas > 0 || d.totalCirurgias > 0) && (
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="rounded-2xl p-5" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                      <h3 className="text-sm font-semibold mb-4" style={{ color: theme.textSecondary }}>Receita por tipo</h3>
-                      <ResponsiveContainer width="100%" height={160}>
-                        <BarChart data={[
-                          { name: "Consultas", valor: d.totalConsultas ?? 0 },
-                          { name: "Procedimentos", valor: d.totalCirurgias ?? 0 },
-                        ]} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-                          <XAxis dataKey="name" tick={{ fill: theme.axisColor, fontSize: 11 }} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fill: theme.axisColor, fontSize: 10 }} axisLine={false} tickLine={false}
-                            tickFormatter={v => `R$${v >= 1000 ? (v/1000).toFixed(0)+"k" : v}`} />
-                          <Tooltip content={<CustomTooltip t={theme} />} />
-                          <Bar dataKey="valor" name="Receita" radius={[6, 6, 0, 0]}>
-                            <Cell fill="#10b981" />
-                            <Cell fill="#8b5cf6" />
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="rounded-2xl p-5 flex flex-col justify-center gap-4" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                      <div>
-                        <p className="text-xs mb-1" style={{ color: theme.textMuted }}>Total em Consultas</p>
-                        <p className="text-2xl font-bold text-emerald-500">{fmt(d.totalConsultas ?? 0, "R$")}</p>
+            {(leads > 0 || consultas > 0) && (
+              <Bloco eyebrow="Funil" frase={`De cada 100 leads, ${leads > 0 ? Math.round((consultas / leads) * 100) : 0} viraram consulta.`}
+                nota="Resumo agregado, sem expor contatos nem informações pessoais do CRM." accentColor={accentColor} t={theme}>
+                <div className="rounded-xl p-5 space-y-4" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
+                  {[
+                    { label: "Leads captados", value: leads, width: 100, detail: "Base do funil" },
+                    { label: "Consultas agendadas", value: consultas, width: leads > 0 ? (consultas / leads) * 100 : 0, detail: leads > 0 ? `${((consultas / leads) * 100).toFixed(1).replace(".", ",")}% dos leads` : "Sem base de leads" },
+                    { label: "Vendas fechadas", value: vendas, width: leads > 0 ? (vendas / leads) * 100 : 0, detail: consultas > 0 ? `${((vendas / consultas) * 100).toFixed(1).replace(".", ",")}% das consultas` : "Sem consultas registradas" },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <div className="flex items-baseline justify-between gap-3 mb-2">
+                        <div>
+                          <p className="text-sm font-semibold m-0" style={{ color: theme.textSecondary }}>{item.label}</p>
+                          <p className="text-[11px] m-0 mt-0.5" style={{ color: theme.textMuted }}>{item.detail}</p>
+                        </div>
+                        <p className="text-lg font-bold m-0" style={{ color: theme.textPrimary, fontVariantNumeric: "tabular-nums" }}>{fmt(item.value)}</p>
                       </div>
-                      <div className="h-px" style={{ background: theme.bgBorder }} />
-                      <div>
-                        <p className="text-xs mb-1" style={{ color: theme.textMuted }}>Total em Procedimentos</p>
-                        <p className="text-2xl font-bold text-purple-500">{fmt(d.totalCirurgias ?? 0, "R$")}</p>
+                      <div className="h-2.5 rounded-full overflow-hidden" style={{ background: theme.bgInput }}>
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(item.width, item.value > 0 ? 2 : 0)}%`, background: accentColor }} />
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              </Bloco>
             )}
 
-            {/* ── FUNIL ────────────────────────────────────────────────────── */}
-            {false && (
-              <div className="space-y-6">
-                <div className="rounded-2xl p-5" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                  <h3 className="text-sm font-semibold mb-5" style={{ color: "oklch(0.65 0.010 60)" }}>Funil de conversão</h3>
-                  <div className="space-y-4">
-                    {[
-                      { label: "Leads captados", value: d.leads ?? 0, color: accentColor, pct: 100 },
-                      { label: "Consultas realizadas", value: d.consultas ?? 0, color: adjHex(ac, 0.80), pct: d.leads > 0 ? ((d.consultas ?? 0) / d.leads) * 100 : 0 },
-                      { label: "Negócios fechados", value: d.vendas ?? 0, color: adjHex(ac, 0.60), pct: d.leads > 0 ? ((d.vendas ?? 0) / d.leads) * 100 : 0 },
-                    ].map((item, i) => (
-                      <div key={i}>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium" style={{ color: theme.textSecondary }}>{item.label}</span>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs" style={{ color: theme.textMuted }}>{item.pct.toFixed(1)}%</span>
-                            <span className="text-base font-bold" style={{ color: theme.textPrimary }}>{fmt(item.value)}</span>
-                          </div>
-                        </div>
-                        <div className="h-2.5 rounded-full" style={{ background: theme.bgBorder }}>
-                          <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(item.pct, 100)}%`, background: item.color }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <KpiCard label="Leads" value={fmt(d.leads)} gradient={grad1} icon="📥" />
-                  <KpiCard label="Consultas" value={fmt(d.consultas ?? 0)}
-                    sub={d.leads > 0 ? `${(((d.consultas ?? 0) / d.leads) * 100).toFixed(1)}% dos leads` : undefined}
-                    gradient={grad2} icon="📅" />
-                  <KpiCard label="Fechamentos" value={fmt(d.vendas)}
-                    sub={d.leads > 0 ? `${(((d.vendas ?? 0) / d.leads) * 100).toFixed(1)}% dos leads` : undefined}
-                    gradient={grad3} icon="✅" />
-                  <KpiCard label="Receita Total" value={fmt(totalVendas, "R$")}
-                    gradient={grad4} icon="💰" />
-                </div>
-                <div className="rounded-2xl p-5" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                  <h3 className="text-sm font-semibold mb-4" style={{ color: "oklch(0.65 0.010 60)" }}>Comparativo do funil</h3>
+            {campanhaData.length > 0 && (
+              <Bloco eyebrow="Investimento" frase="Onde a verba foi aplicada." nota="Por tipo de campanha, no período." accentColor={accentColor} t={theme}>
+                <div className="rounded-xl p-5" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
                   <ResponsiveContainer width="100%" height={180}>
-                    <BarChart data={funilData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
-                      <XAxis dataKey="name" tick={{ fill: theme.axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fill: "oklch(0.35 0.008 20)", fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="value" name="Quantidade" radius={[6, 6, 0, 0]}>
-                        {funilData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                      </Bar>
+                    <BarChart data={campanhaData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
+                      <XAxis dataKey="name" tick={{ fill: theme.axisColor, fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: theme.axisColor, fontSize: 10 }} axisLine={false} tickLine={false}
+                        tickFormatter={v => `R$${v >= 1000 ? (v/1000).toFixed(0)+"k" : v}`} />
+                      <Tooltip content={<CustomTooltip t={theme} />} cursor={{ fill: theme.bgHover }} />
+                      <Bar dataKey="investimento" name="Investimento" radius={[6, 6, 0, 0]} fill={theme.chart} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-              </div>
+              </Bloco>
             )}
-          </>
+
+            {leitura.analise.length > 0 && (
+              <section>
+                <Eyebrow accentColor={accentColor}>Análise</Eyebrow>
+                <Statement t={theme}>O que os números dizem.</Statement>
+                <Texto paragrafos={leitura.analise} t={theme} />
+              </section>
+            )}
+
+            <section>
+              <Eyebrow accentColor={accentColor}>Recomendação</Eyebrow>
+              <Statement t={theme}>Para onde olhar agora.</Statement>
+              <Destaque paragrafos={leitura.recomendacao} accentColor={accentColor} t={theme} />
+            </section>
+
+            {clientInfo.proximosPassos && (
+              <section>
+                <Eyebrow accentColor={accentColor}>Próximos passos</Eyebrow>
+                <Texto paragrafos={[clientInfo.proximosPassos]} t={theme} />
+              </section>
+            )}
+
+            {publicCreativesData?.creatives?.length > 0 && (
+              <Bloco eyebrow="Anúncios no ar" frase="As peças veiculadas em nome da clínica." nota="Ordenadas pelo investimento no período." accentColor={accentColor} t={theme}>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {(publicCreativesData.creatives as any[]).map((cr: any) => (
+                    <div key={cr.adId} className="rounded-xl overflow-hidden" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
+                      <div className="relative aspect-square overflow-hidden" style={{ background: theme.bgInput }}>
+                        {cr.thumbnailUrl ? (
+                          <img src={cr.thumbnailUrl} alt={cr.adName} className="w-full h-full object-contain" loading="lazy" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-3xl" style={{ color: theme.textMuted }}>
+                            {cr.format === "video" ? "🎥" : cr.format === "carousel" ? "📷" : "🖼️"}
+                          </div>
+                        )}
+                        <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-black/60 text-white">
+                          {cr.format === "video" ? "Vídeo" : cr.format === "carousel" ? "Carrossel" : "Imagem"}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Bloco>
+            )}
+          </div>
         ) : (
-          <div className="text-center py-16" style={{ color: theme.textMuted }}>
-            <p className="text-4xl mb-3">📊</p>
+          <div className="text-center py-12" style={{ color: theme.textMuted }}>
             <p className="text-sm">Nenhum dado encontrado para o período selecionado.</p>
           </div>
         )}
 
-        {/* ── CONTEÚDOS ────────────────────────────────────────────────────── */}
-        {activeTab === "Conteúdos" && (
-          <div>
-            {!clientInfo?.igUsername ? (
-              <div className="text-center py-12 rounded-2xl border-2 border-dashed" style={{ borderColor: theme.bgBorder }}>
-                <p className="text-sm" style={{ color: theme.textMuted }}>Instagram não conectado para este cliente.</p>
-              </div>
-            ) : (
-              <div>
-                {/* ── Perfil: seguidores, crescimento e alcance ───────────── */}
-                {igInsightsLoading ? (
-                  <div className="grid gap-3 md:grid-cols-3 mb-8">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="h-28 rounded-2xl animate-pulse" style={{ background: theme.bgInput }} />
-                    ))}
-                  </div>
-                ) : igInsights?.connected && igInsights?.totals ? (
-                  <InstagramProfile
-                    totals={igInsights.totals}
-                    username={igInsights.username}
-                    accentColor={accentColor}
-                    periodLabel={periodLabel}
-                    t={theme}
-                  />
-                ) : null}
-
-                {/* ── Conteúdos que mais performaram ──────────────────────── */}
-                {postsLoading ? (
-                  <div className="grid gap-3 md:grid-cols-3">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="aspect-[4/5] rounded-2xl animate-pulse" style={{ background: theme.bgInput }} />
-                    ))}
-                  </div>
-                ) : postsData?.posts?.length > 0 ? (
-                  <TopContent posts={postsData.posts} accentColor={accentColor} t={theme} />
-                ) : (
-                  <div className="text-center py-12 rounded-2xl border-2 border-dashed" style={{ borderColor: theme.bgBorder }}>
-                    <p className="text-sm" style={{ color: theme.textMuted }}>Nenhum conteúdo encontrado no período.</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── CRIATIVOS ────────────────────────────────────────────────────── */}
-        {false && (
-          <div>
-            <div className="flex items-center gap-2 mb-5">
-              <span className="text-xl">🎨</span>
-              <div>
-                <h3 className="text-base font-bold" style={{ color: theme.textPrimary }}>Criativos Ativos no Tráfego</h3>
-                <p className="text-xs" style={{ color: theme.textMuted }}>{periodLabel}</p>
-              </div>
-            </div>
-            {publicCreativesLoading ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">{[...Array(8)].map((_, i) => <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{ background: theme.bgInput }} />)}</div>
-            ) : publicCreativesData?.error === "meta_not_configured" ? (
-              <div className="text-center py-12 rounded-2xl border-2 border-dashed" style={{ borderColor: "oklch(0.20 0.008 20)" }}>
-                <p className="text-sm" style={{ color: theme.textMuted }}>Meta Ads não configurado para este cliente.</p>
-              </div>
-            ) : publicCreativesData?.creatives?.length ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                {(publicCreativesData.creatives as any[]).map((cr: any) => (
-                  <div key={cr.adId} className="rounded-xl overflow-hidden" style={{ background: theme.bgCard, border: `1px solid ${theme.bgBorder}` }}>
-                    <div className="relative aspect-square overflow-hidden" style={{ background: theme.bgInput }}>
-                      {cr.thumbnailUrl ? (
-                        <img src={cr.thumbnailUrl} alt={cr.adName} className="w-full h-full object-contain" loading="lazy" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-3xl" style={{ color: "oklch(0.35 0.008 20)" }}>
-                          {cr.format === "video" ? "🎥" : cr.format === "carousel" ? "📷" : "🖼️"}
-                        </div>
-                      )}
-                      <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-black/60 text-white">
-                        {cr.format === "video" ? "🎥" : cr.format === "carousel" ? "📷" : "🖼️"}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 rounded-2xl border-2 border-dashed" style={{ borderColor: "oklch(0.20 0.008 20)" }}>
-                <p className="text-sm" style={{ color: theme.textMuted }}>Nenhum criativo encontrado para este período.</p>
-              </div>
-            )}
-          </div>
-        )}
+        {/* ── Rodapé: assinatura e fonte, como no PDF ──────────────────── */}
+        <footer className="mt-14 pt-5 text-[11px]" style={{ borderTop: `1px solid ${theme.bgBorder}`, color: theme.textMuted, lineHeight: 1.75 }}>
+          Relatório preparado por <b style={{ color: theme.textSecondary }}>{GESTORA}</b> · {AGENCIA} · {SITE}<br />
+          {revenueLineage?.label
+            ? <>Dados comerciais: {revenueLineage.label}{revenueUpdatedAt ? `, atualizados em ${revenueUpdatedAt}` : ""}. </>
+            : <>Sem base comercial disponível no período. </>}
+          Mídia e perfil: API do Meta, no período selecionado. Gerado em {geradoEm}.
+        </footer>
       </main>
-
-      {/* Footer */}
-      <footer className="mt-12 py-6 text-center text-xs" style={{ borderTop: `1px solid ${theme.bgBorder}`, color: theme.textMuted }}>
-        Relatório gerado por ADS Dashboard · Escarlate Digital · {periodLabel}
-      </footer>
     </div>
   );
 }

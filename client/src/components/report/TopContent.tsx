@@ -6,6 +6,7 @@
  * ranking usa um score que a clínica não tinha como interpretar. Aqui os três
  * primeiros ganham destaque com a leitura completa, e o critério fica explícito.
  */
+import { Eyebrow, Statement } from "./ReportNarrative";
 
 export type IgPost = {
   id: string;
@@ -85,15 +86,12 @@ export function TopContent({ posts, accentColor, t }: {
 
   return (
     <section>
-      <div className="mb-4">
-        <h3 className="text-base font-bold" style={{ color: t.textPrimary }}>
-          Conteúdos que mais performaram
-        </h3>
-        <p className="text-xs mt-0.5" style={{ color: t.textMuted }}>
-          Ordenados por engajamento ponderado: salvamentos contam 3×,
-          compartilhamentos 2×, curtidas e comentários 1×.
-        </p>
-      </div>
+      <Eyebrow accentColor={accentColor}>Conteúdos</Eyebrow>
+      <Statement t={t}>O que mais performou no perfil.</Statement>
+      <p className="text-[12.5px] m-0 mb-4 max-w-[660px]" style={{ color: t.textMuted, marginTop: -6 }}>
+        Ordenados por engajamento ponderado: salvamentos contam 3×,
+        compartilhamentos 2×, curtidas e comentários 1×.
+      </p>
 
       {/* Top 3 — leitura completa */}
       <div className="grid gap-3 md:grid-cols-3 mb-3">

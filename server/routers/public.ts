@@ -8,6 +8,8 @@ import { TRPCError } from "@trpc/server";
 import { getIntegration, getClientById } from "../db";
 import { fetchClientKpis } from "../routers";
 import { fetchInstagramInsightsByIgId } from "../metaApi";
+import { getSystemSetting } from "../_core/systemRouter";
+import { resolverToken, CHAVE_TOKEN_AGENCIA } from "../metaTokenResolver";
 import { invokeLLM } from "../_core/llm";
 import { resolvePreferredInstagramConnection } from "../instagramConnection";
 import { fingerprintPublicReportToken, isValidPublicReportToken } from "../publicReportSecurity";
@@ -203,22 +205,24 @@ export const publicRouter = router({
       const { id: clientId } = client;
 
       const metaInteg = await getIntegration(clientId, "meta_token");
-      if (!metaInteg?.accessToken || !metaInteg?.adAccountId) {
+      // O token é o da agência quando existir; a conta continua por cliente.
+      const { token: metaToken, adAccountId } = resolverToken(await getSystemSetting(CHAVE_TOKEN_AGENCIA), metaInteg);
+      if (!metaToken || !adAccountId) {
         return { creatives: [], error: "meta_not_configured" };
       }
 
       const { fetchActiveCreatives } = await import("../metaApi");
       // Build list of all ad accounts (primary + additional from extraConfig)
-      const extraCfg = metaInteg.extraConfig as { additionalAccounts?: { id: string; name: string }[] } | null;
+      const extraCfg = metaInteg?.extraConfig as { additionalAccounts?: { id: string; name: string }[] } | null;
       const additionalAccts = extraCfg?.additionalAccounts ?? [];
-      const primaryIds = metaInteg.adAccountId.includes(",")
-        ? metaInteg.adAccountId.split(",").map((s: string) => s.trim()).filter(Boolean)
-        : [metaInteg.adAccountId];
+      const primaryIds = adAccountId.includes(",")
+        ? adAccountId.split(",").map((s: string) => s.trim()).filter(Boolean)
+        : [adAccountId];
       const allAccountIds = [...primaryIds, ...additionalAccts.map((a) => a.id)];
 
       const results = await Promise.all(
         allAccountIds.map((accountId: string) =>
-          fetchActiveCreatives(metaInteg.accessToken!, accountId, input.from, input.to)
+          fetchActiveCreatives(metaToken, accountId, input.from, input.to)
         )
       );
       const creatives = results.flat().sort((a, b) => b.spend - a.spend);
