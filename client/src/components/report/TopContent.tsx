@@ -85,7 +85,7 @@ export function TopContent({ posts, accentColor, t }: {
   const resto = posts.slice(3);
 
   return (
-    <section data-print="keep">
+    <section>
       <Eyebrow accentColor={accentColor}>Conteúdos</Eyebrow>
       <Statement t={t}>O que mais performou no perfil.</Statement>
       <p className="text-[12.5px] m-0 mb-4 max-w-[660px]" style={{ color: t.textMuted, marginTop: -6 }}>

@@ -15,7 +15,7 @@ type Theme = {
 /** Rótulo de seção: risco curto na cor da marca e texto em caixa alta. */
 export function Eyebrow({ children, accentColor }: { children: React.ReactNode; accentColor: string }) {
   return (
-    <p className="flex items-center gap-3 text-[10.5px] uppercase font-bold m-0 mb-2.5" data-print="lead"
+    <p className="flex items-center gap-3 text-[10.5px] uppercase font-bold m-0 mb-2.5"
        style={{ color: accentColor, letterSpacing: ".2em" }}>
       <span aria-hidden="true" style={{ width: 26, height: 2, background: accentColor, borderRadius: 2 }} />
       {children}
@@ -26,7 +26,7 @@ export function Eyebrow({ children, accentColor }: { children: React.ReactNode; 
 /** Frase de leitura que abre a seção, antes dos números. */
 export function Statement({ children, t }: { children: React.ReactNode; t: Theme }) {
   return (
-    <p className="text-[21px] md:text-[23px] font-bold m-0 mb-4 max-w-[680px]" data-print="lead"
+    <p className="text-[21px] md:text-[23px] font-bold m-0 mb-4 max-w-[680px]"
        style={{ color: t.textPrimary, letterSpacing: "-.015em", lineHeight: 1.25 }}>
       {children}
     </p>
@@ -43,7 +43,7 @@ export function Capa({ manchete, destaque, subtitulo, cliente, periodo, accentCo
   t: Theme;
 }) {
   return (
-    <section className="mb-10" data-print="keep">
+    <section className="mb-10">
       <span className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 mb-5 text-[10.5px] uppercase font-semibold"
         style={{ border: `1px solid ${t.bgBorder}`, color: t.textSecondary, letterSpacing: ".18em" }}>
         <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: accentColor }} />
@@ -74,7 +74,7 @@ export function Texto({ paragrafos, t }: { paragrafos: string[]; t: Theme }) {
   return (
     <div>
       {paragrafos.map((p, i) => (
-        <p key={i} className="text-[14.5px] m-0 mb-3 max-w-[700px]" data-print="keep"
+        <p key={i} className="text-[14.5px] m-0 mb-3 max-w-[700px]"
            style={{ color: t.textSecondary, lineHeight: 1.65 }}>{p}</p>
       ))}
     </div>
@@ -85,7 +85,7 @@ export function Destaque({ paragrafos, accentColor, t }: {
   paragrafos: string[]; accentColor: string; t: Theme;
 }) {
   return (
-    <div className="rounded-xl px-5 py-5" data-print="keep"
+    <div className="rounded-xl px-5 py-5"
       style={{ background: t.bgCard, border: `1px solid ${t.bgBorder}`, borderLeft: `3px solid ${accentColor}` }}>
       {paragrafos.map((p, i) => (
         <p key={i} className="text-[14.5px] m-0" style={{

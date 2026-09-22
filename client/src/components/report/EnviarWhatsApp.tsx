@@ -27,7 +27,6 @@ type Props = {
 export function EnviarWhatsApp({ open, onClose, managerToken, clientId, clientName, from, to, onConfigurarGrupo }: Props) {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const [texto, setTexto] = useState("");
-  const [formato, setFormato] = useState<"pdf" | "link">("pdf");
 
   const previa = trpc.whatsapp.previewReportAsManager.useQuery(
     { managerToken, clientId, from, to, origin },
@@ -36,14 +35,11 @@ export function EnviarWhatsApp({ open, onClose, managerToken, clientId, clientNa
 
   // Cada abertura começa do texto padrão para o período atual.
   useEffect(() => {
-    if (open && previa.data) {
-      setTexto(previa.data.corpo);
-      setFormato(previa.data.pdfDisponivel ? "pdf" : "link");
-    }
+    if (open && previa.data) setTexto(previa.data.corpo);
   }, [open, previa.data]);
 
   const enviar = trpc.whatsapp.sendReportAsManager.useMutation({
-    onSuccess: (r) => { toast.success(r.formato === "pdf" ? "PDF enviado no grupo do WhatsApp!" : "Link enviado no grupo do WhatsApp!"); onClose(); },
+    onSuccess: () => { toast.success("Relatório enviado no grupo do WhatsApp!"); onClose(); },
     onError: (e) => toast.error(e.message || "Não foi possível enviar"),
   });
 
@@ -79,22 +75,6 @@ export function EnviarWhatsApp({ open, onClose, managerToken, clientId, clientNa
 
           {previa.data && (
             <>
-              <div className="flex flex-wrap gap-2 text-xs">
-                {([["pdf", "📄 Documento PDF"], ["link", "🔗 Link"]] as const).map(([v, rotulo]) => {
-                  const bloqueado = v === "pdf" && !previa.data!.pdfDisponivel;
-                  const ativo = formato === v;
-                  return (
-                    <button key={v} type="button" disabled={bloqueado} onClick={() => setFormato(v)}
-                      className="px-3 py-1.5 rounded-lg border font-semibold disabled:opacity-40"
-                      style={{ borderColor: ativo ? "#25D366" : "var(--border)", background: ativo ? "rgba(37,211,102,0.12)" : "transparent", color: ativo ? "#25D366" : "inherit" }}>
-                      {rotulo}
-                    </button>
-                  );
-                })}
-                {!previa.data.pdfDisponivel && (
-                  <span className="self-center text-[11px] text-muted-foreground">PDF indisponível neste servidor — vai como link.</span>
-                )}
-              </div>
               <textarea
                 value={texto}
                 onChange={(e) => setTexto(e.target.value)}
@@ -102,24 +82,14 @@ export function EnviarWhatsApp({ open, onClose, managerToken, clientId, clientNa
                 maxLength={3500}
                 className="w-full text-sm rounded-lg px-3 py-2 bg-muted/40 border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed"
               />
-              {formato === "link" && previa.data.link && (
+              {previa.data.link && (
                 <p className="text-xs font-mono break-all rounded-lg px-3 py-2 bg-muted/30 border border-border text-muted-foreground">
                   🔗 {previa.data.link}
                 </p>
               )}
               <p className="text-[11px] text-muted-foreground">
-                {formato === "pdf"
-                  ? "O relatório vai como arquivo PDF anexo, e este texto como legenda. Gerar leva uns 10–20 segundos."
-                  : "O link entra automaticamente no fim da mensagem."}{" "}
-                <span className="font-semibold">*texto*</span> sai em negrito no WhatsApp.
+                O link entra automaticamente no fim da mensagem. <span className="font-semibold">*texto*</span> sai em negrito no WhatsApp.
               </p>
-              {previa.data.pdfDisponivel && (
-                <a className="text-[11px] underline text-muted-foreground hover:text-foreground"
-                  href={`/api/relatorio/pdf?clientId=${clientId}&from=${from}&to=${to}&managerToken=${encodeURIComponent(managerToken)}`}
-                  target="_blank" rel="noreferrer">
-                  Baixar o PDF para conferir antes
-                </a>
-              )}
             </>
           )}
         </div>
@@ -128,9 +98,9 @@ export function EnviarWhatsApp({ open, onClose, managerToken, clientId, clientNa
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button
             disabled={!previa.data || !!semGrupo || !!semLink || enviar.isPending}
-            onClick={() => enviar.mutate({ managerToken, clientId, from, to, origin, reportText: texto, formato })}
+            onClick={() => enviar.mutate({ managerToken, clientId, from, to, origin, reportText: texto })}
             style={{ background: "#25D366", color: "#062b16" }}>
-            {enviar.isPending ? (formato === "pdf" ? "Gerando PDF e enviando..." : "Enviando...") : "💬 Enviar agora"}
+            {enviar.isPending ? "Enviando..." : "💬 Enviar agora"}
           </Button>
         </DialogFooter>
       </DialogContent>

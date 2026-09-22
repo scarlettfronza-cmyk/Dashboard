@@ -28,7 +28,7 @@ export function Metric({ label, value, hint, hi, accentColor, t }: {
     : t.bgCard;
   const borda = hi ? `color-mix(in oklch, ${accentColor} 35%, ${t.bgBorder})` : t.bgBorder;
   return (
-    <div className="flex flex-col" data-print="keep" style={{ background: fundo, border: `1px solid ${borda}`, borderRadius: 13, padding: "17px 19px" }}>
+    <div className="flex flex-col" style={{ background: fundo, border: `1px solid ${borda}`, borderRadius: 13, padding: "17px 19px" }}>
       <p className="text-[10px] uppercase font-semibold m-0" style={{ color: t.textMuted, letterSpacing: ".14em", minHeight: "2.4em" }}>
         {label}
       </p>
@@ -51,7 +51,7 @@ export function Bloco({ eyebrow, frase, nota, accentColor, t, children }: {
     <section>
       <Eyebrow accentColor={accentColor}>{eyebrow}</Eyebrow>
       {frase && <Statement t={t}>{frase}</Statement>}
-      {nota && <p className="text-[12.5px] m-0 mb-4 max-w-[660px]" data-print="lead" style={{ color: t.textMuted, marginTop: frase ? -6 : 0 }}>{nota}</p>}
+      {nota && <p className="text-[12.5px] m-0 mb-4 max-w-[660px]" style={{ color: t.textMuted, marginTop: frase ? -6 : 0 }}>{nota}</p>}
       {children}
     </section>
   );

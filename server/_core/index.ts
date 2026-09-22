@@ -8,7 +8,6 @@ import { registerMetaOAuthRoutes } from "../metaOAuth";
 import { registerRestoreRoute } from "../restoreRoute";
 import { registerRecoveryRoute } from "../recoveryRoute";
 import { garantirTabelas } from "../schemaGuard";
-import { registerRelatorioPdfRoute } from "../relatorioPdfRoute";
 import { registerSalesUploadRoute } from "../salesUpload";
 import { registerScheduledRoutes } from "../scheduledRoutes";
 import { startMondayCron } from "../mondayCron";
@@ -52,7 +51,6 @@ async function startServer() {
   registerMetaOAuthRoutes(app);
   registerRestoreRoute(app);
   registerRecoveryRoute(app);
-  registerRelatorioPdfRoute(app);
   // Sales XLSX upload endpoint
   registerSalesUploadRoute(app);
   // Scheduled task endpoints (budget check, etc.)

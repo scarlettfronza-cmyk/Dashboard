@@ -35,12 +35,6 @@ export function linkRelatorio(origem: string, publicToken: string, from: string,
   return `${base}/r/${encodeURIComponent(publicToken)}?${q.toString()}`;
 }
 
-/** "Relatorio-DR-MARIO-BONGIOLO-2026-08-01-a-2026-08-31.pdf" — só ASCII, para qualquer celular abrir. */
-export function nomeArquivoPdf(clienteNome: string, from: string, to: string): string {
-  const base = clienteNome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "").toUpperCase() || "CLIENTE";
-  return `Relatorio-${base}-${from}-a-${to}.pdf`;
-}
-
 export type DadosMensagem = {
   clienteNome: string;
   from: string;

@@ -192,16 +192,8 @@ ligar o servidor à sua conta do Z-API.
    qual variável ainda falta.
 
 Ao clicar em **💬 WhatsApp** no painel, abre uma prévia da mensagem — o
-texto pode ser ajustado antes de enviar. Dá para mandar de dois jeitos:
-
-- **Documento PDF** (padrão): o servidor imprime o relatório em PDF e
-  envia como arquivo, com o texto de legenda. Leva uns 10–20 segundos.
-  Há também "Baixar o PDF para conferir antes".
-- **Link**: só a mensagem com o link, que já abre no período selecionado.
-
-O PDF depende de um navegador no servidor; o `nixpacks.toml` do projeto
-instala o `chromium` no Railway automaticamente. Se a prévia disser "PDF
-indisponível", veja o log por `Chromium não encontrado`.
+texto pode ser ajustado antes de enviar. O link já abre o relatório no
+período que estava selecionado no painel.
 
 ## 7. Conferir
 

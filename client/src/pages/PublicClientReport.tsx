@@ -143,8 +143,7 @@ export default function PublicClientReport() {
   }
   if (clientError || !clientInfo) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: DARK_THEME.bg }}
-        data-ready="1" data-erro={clientError?.message ?? "Link inválido ou expirado"}>
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: DARK_THEME.bg }}>
         <div className="text-center">
           <p className="text-4xl mb-3">🔗</p>
           <p className="text-lg font-semibold mb-2" style={{ color: DARK_THEME.textPrimary }}>
@@ -266,9 +265,7 @@ export default function PublicClientReport() {
           navegador pega tudo. Capa → resultado comercial → tráfego →
           perfil → conteúdos → funil → investimento → análise →
           recomendação → próximos passos → anúncios no ar. */}
-      {/* data-ready: o gerador de PDF do servidor espera por isto antes de imprimir. */}
-      <main className="max-w-5xl mx-auto px-4 pt-8 pb-6" data-print="page" style={{ color: theme.textPrimary }}
-        data-ready={!loadingDash && !postsLoading && !igInsightsLoading && !publicCreativesLoading ? "1" : "0"}>
+      <main className="max-w-5xl mx-auto px-4 pt-8 pb-6" data-print="page" style={{ color: theme.textPrimary }}>
         {loadingDash ? (
           <div className="space-y-4">
             <div className="h-10 w-2/3 rounded-xl animate-pulse" style={{ background: theme.bgInput }} />
@@ -359,7 +356,7 @@ export default function PublicClientReport() {
                       <YAxis tick={{ fill: theme.axisColor, fontSize: 10 }} axisLine={false} tickLine={false}
                         tickFormatter={v => `R$${v >= 1000 ? (v/1000).toFixed(0)+"k" : v}`} />
                       <Tooltip content={<CustomTooltip t={theme} />} cursor={{ fill: theme.bgHover }} />
-                      <Bar dataKey="investimento" name="Investimento" radius={[6, 6, 0, 0]} fill={theme.chart} isAnimationActive={false} />
+                      <Bar dataKey="investimento" name="Investimento" radius={[6, 6, 0, 0]} fill={theme.chart} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
