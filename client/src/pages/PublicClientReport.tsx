@@ -356,7 +356,7 @@ export default function PublicClientReport() {
                     <BarChart data={campanhaData} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
                       <XAxis dataKey="name" tick={{ fill: theme.axisColor, fontSize: 11 }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fill: theme.axisColor, fontSize: 10 }} axisLine={false} tickLine={false}
-                        tickFormatter={v => `R$${v >= 1000 ? (v/1000).toFixed(0)+"k" : v}`} />
+                        tickFormatter={v => v >= 1000 ? `R$ ${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil` : `R$ ${v}`} />
                       <Tooltip content={<CustomTooltip t={theme} />} cursor={{ fill: theme.bgHover }} />
                       <Bar dataKey="investimento" name="Investimento" radius={[6, 6, 0, 0]} fill={theme.chart} />
                     </BarChart>
