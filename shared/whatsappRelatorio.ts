@@ -54,11 +54,13 @@ export const PERGUNTAS = [
   "3️⃣ Teve alguma objeção ou padrão que se repetiu?",
 ];
 
-/** Corpo da mensagem sem o link — é o que a gestora edita na prévia. */
-export function corpoPadrao(d: Pick<DadosMensagem, "clienteNome" | "from" | "to">): string {
-  const nome = d.clienteNome.trim();
+/**
+ * Corpo da mensagem sem o link — é o que a gestora edita na prévia.
+ * Sem o nome do cliente: a mensagem vai no grupo da própria clínica.
+ */
+export function corpoPadrao(d: Pick<DadosMensagem, "from" | "to">): string {
   return [
-    `Olá! 👋 Segue o relatório de *${nome}* referente ao período de ${formatarPeriodo(d.from, d.to)}.`,
+    `Olá! 👋 Segue o relatório referente ao período de ${formatarPeriodo(d.from, d.to)}.`,
     "",
     "Nele estão os dados de tráfego, o perfil do Instagram e os resultados comerciais do período.",
     "",
