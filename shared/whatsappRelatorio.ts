@@ -43,14 +43,28 @@ export type DadosMensagem = {
   texto?: string | null;
 };
 
+/**
+ * Perguntas que vão junto com o relatório: a resposta da clínica sobre a
+ * qualidade dos leads é o que a gestora não enxerga pelos números.
+ */
+export const PERGUNTAS = [
+  "✨ *Perguntinhas:*",
+  "1️⃣ Como você classifica a qualidade dos leads desse período? 👉 Ótimo | Mediano | Ruim | Péssimo",
+  "2️⃣ Como foi o engajamento desses leads?",
+  "3️⃣ Teve alguma objeção ou padrão que se repetiu?",
+];
+
 /** Corpo da mensagem sem o link — é o que a gestora edita na prévia. */
 export function corpoPadrao(d: Pick<DadosMensagem, "clienteNome" | "from" | "to">): string {
   const nome = d.clienteNome.trim();
   return [
     `Olá! 👋 Segue o relatório de *${nome}* referente ao período de ${formatarPeriodo(d.from, d.to)}.`,
     "",
-    "Nele estão os dados de tráfego, o perfil do Instagram e os resultados comerciais do período. Qualquer dúvida, é só me chamar por aqui.",
+    "Nele estão os dados de tráfego, o perfil do Instagram e os resultados comerciais do período.",
     "",
+    ...PERGUNTAS,
+    "",
+    "Qualquer dúvida, é só me chamar por aqui.",
     ASSINATURA,
   ].join("\n");
 }

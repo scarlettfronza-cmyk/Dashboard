@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   zapVarsFaltando, formatarPeriodo, linkRelatorio, corpoPadrao,
-  montarMensagemRelatorio, lerPeriodoDaUrl, ASSINATURA,
+  montarMensagemRelatorio, lerPeriodoDaUrl, ASSINATURA, PERGUNTAS,
 } from "@shared/whatsappRelatorio";
 
 describe("zapVarsFaltando", () => {
@@ -37,10 +37,12 @@ describe("linkRelatorio", () => {
 
 describe("mensagem", () => {
   const d = { clienteNome: "  DR MARIO BONGIOLO ", from: "2026-08-01", to: "2026-08-31" };
-  it("corpo padrão cita o cliente, o período e a assinatura", () => {
+  it("corpo padrão cita o cliente, o período, as perguntas e a assinatura", () => {
     const c = corpoPadrao(d);
     expect(c).toContain("*DR MARIO BONGIOLO*");
     expect(c).toContain("01/08 a 31/08/2026");
+    for (const p of PERGUNTAS) expect(c).toContain(p);
+    expect(c.indexOf("Perguntinhas")).toBeLessThan(c.indexOf(ASSINATURA));
     expect(c.endsWith(ASSINATURA)).toBe(true);
   });
   it("mensagem completa termina com o link", () => {
