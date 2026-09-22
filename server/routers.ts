@@ -2155,7 +2155,7 @@ const whatsappRouter = router({
       const client = rows[0];
       if (!client) throw new Error("Cliente não encontrado");
       return {
-        corpo: corpoPadrao({ clienteNome: client.name, from: input.from, to: input.to }),
+        corpo: corpoPadrao({ from: input.from, to: input.to }),
         link: client.publicToken ? linkRelatorio(input.origin, client.publicToken, input.from, input.to) : null,
         grupoConfigurado: !!client.whatsappGroupId,
       };
