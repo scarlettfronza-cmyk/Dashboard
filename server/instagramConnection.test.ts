@@ -38,4 +38,21 @@ describe("pickPreferredInstagramConnection", () => {
 
     expect(resolved).toMatchObject({ source: "meta_token", metaIgUserId: "fallback-ig" });
   });
+
+  it("token da agência autentica antes dos tokens por cliente, sem mudar a identidade", () => {
+    const resolved = pickPreferredInstagramConnection(
+      { accessToken: "oauth-morto", metaIgUserId: "correct-ig", metaIgUsername: "drmario" },
+      { accessToken: "meta-token", metaIgUserId: "wrong-ig" },
+      "token-agencia",
+    );
+    expect(resolved).toMatchObject({ accessToken: "token-agencia", tokenOrigem: "agencia", source: "instagram_oauth", metaIgUserId: "correct-ig" });
+  });
+
+  it("identidade escolhida sem nenhum token → null", () => {
+    expect(pickPreferredInstagramConnection({ accessToken: null, metaIgUserId: "x" }, null, null)).toBeNull();
+  });
+
+  it("agência sozinha não inventa perfil: sem identidade escolhida → null", () => {
+    expect(pickPreferredInstagramConnection(null, null, "token-agencia")).toBeNull();
+  });
 });

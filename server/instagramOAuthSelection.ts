@@ -5,8 +5,13 @@ export type InstagramProfileCandidate = {
   followersCount: number;
 };
 
-export function getProfileListingToken(oauthToken?: string | null, metaToken?: string | null): string | null {
-  return oauthToken || metaToken || null;
+/**
+ * Token para listar/confirmar perfis. O da agência (usuário do sistema,
+ * não expira) vem primeiro: os tokens de OAuth guardados por cliente vieram
+ * do Facebook antigo e morreram com ele.
+ */
+export function getProfileListingToken(oauthToken?: string | null, metaToken?: string | null, tokenAgencia?: string | null): string | null {
+  return tokenAgencia || oauthToken || metaToken || null;
 }
 
 export function isPendingInstagramSelection(connection?: { accessToken?: string | null; metaIgUserId?: string | null } | null): boolean {

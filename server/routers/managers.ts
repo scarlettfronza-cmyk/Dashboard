@@ -20,6 +20,8 @@ import { generateImage } from "../_core/imageGeneration";
 import { encryptSecret } from "../secretCipher";
 import { getManagerJwtSecret } from "../managerAuthSecret";
 import { getProfileListingToken, isPendingInstagramSelection, requireAccessibleInstagramProfile } from "../instagramOAuthSelection";
+import { getSystemSetting } from "../_core/systemRouter";
+import { CHAVE_TOKEN_AGENCIA } from "../metaTokenResolver";
 import { getLeadsForClient, getTopPostsForClient } from "./crm";
 import { buildClientAdAccountIds } from "../adAccounts";
 
@@ -306,13 +308,21 @@ export const managersRouter = router({
     .input(z.object({ token: z.string(), clientId: z.number() }))
     .query(async ({ input }) => {
       await verifyManagerOwnsClient(input.token, input.clientId);
-      const ig = await getIntegration(input.clientId, "instagram_oauth");
-      if (!ig?.metaIgUserId) return { connected: false, pending: isPendingInstagramSelection(ig), igUserId: null, username: null, tokenExpired: false, tokenWarning: false, daysSince: 0, updatedAt: null };
+      const { isMetaOAuthConfigured } = await import("../metaOAuth");
+      const [ig, tokenAgencia] = await Promise.all([
+        getIntegration(input.clientId, "instagram_oauth"),
+        getSystemSetting(CHAVE_TOKEN_AGENCIA),
+      ]);
+      // Com o token da agência (usuário do sistema), não há prazo de validade
+      // nem OAuth por cliente: o perfil escolhido é lido com ele.
+      const viaAgencia = Boolean(tokenAgencia);
+      const base = { oauthDisponivel: isMetaOAuthConfigured(), viaAgencia };
+      if (!ig?.metaIgUserId) return { ...base, connected: false, pending: isPendingInstagramSelection(ig), igUserId: null, username: null, tokenExpired: false, tokenWarning: false, daysSince: 0, updatedAt: null };
       const updatedAt = ig.updatedAt ? new Date(ig.updatedAt).toISOString() : null;
       const daysSince = updatedAt ? Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86400000) : 999;
-      const tokenExpired = daysSince > 60;
-      const tokenWarning = daysSince > 50 && !tokenExpired;
-      return { connected: true, pending: false, igUserId: ig.metaIgUserId, username: ig.metaIgUsername ?? null, tokenExpired, tokenWarning, daysSince, updatedAt };
+      const tokenExpired = !viaAgencia && daysSince > 60;
+      const tokenWarning = !viaAgencia && daysSince > 50 && !tokenExpired;
+      return { ...base, connected: true, pending: false, igUserId: ig.metaIgUserId, username: ig.metaIgUsername ?? null, tokenExpired, tokenWarning, daysSince, updatedAt };
     }),
 
   // ── List ad accounts using a token (manager JWT auth) ──────────────────────
@@ -542,16 +552,21 @@ export const managersRouter = router({
     .input(z.object({ token: z.string(), clientId: z.number(), igUserId: z.string(), igUsername: z.string() }))
     .mutation(async ({ input }) => {
       await verifyManagerOwnsClient(input.token, input.clientId);
-      const metaToken = await getIntegration(input.clientId, "meta_token");
-      const existingIg = await getIntegration(input.clientId, "instagram_oauth");
-      const tokenToUse = getProfileListingToken(existingIg?.accessToken, metaToken?.accessToken);
-      if (!tokenToUse) throw new TRPCError({ code: "BAD_REQUEST", message: "Nenhuma autorização Meta disponível para confirmar o perfil" });
+      const [metaToken, existingIg, tokenAgencia] = await Promise.all([
+        getIntegration(input.clientId, "meta_token"),
+        getIntegration(input.clientId, "instagram_oauth"),
+        getSystemSetting(CHAVE_TOKEN_AGENCIA),
+      ]);
+      const tokenToUse = getProfileListingToken(existingIg?.accessToken, metaToken?.accessToken, tokenAgencia);
+      if (!tokenToUse) throw new TRPCError({ code: "BAD_REQUEST", message: "Nenhuma autorização Meta disponível para confirmar o perfil. Salve o token da agência em Configurações." });
       const profiles = await listInstagramProfiles(tokenToUse);
       const selected = requireAccessibleInstagramProfile(profiles, input.igUserId);
+      // Com o token da agência, a linha do cliente guarda só a identidade:
+      // copiar o segredo da agência em cada cliente seria multiplicar o risco.
       await upsertIntegration({
         clientId: input.clientId,
         provider: "instagram_oauth",
-        accessToken: tokenToUse,
+        accessToken: tokenAgencia ? null : tokenToUse,
         adAccountId: null,
         boardId: null,
         metaIgUserId: selected.igUserId,
@@ -566,12 +581,13 @@ export const managersRouter = router({
     .input(z.object({ token: z.string(), clientId: z.number() }))
     .mutation(async ({ input }) => {
       await verifyManagerOwnsClient(input.token, input.clientId);
-      const [oauthIntegration, metaIntegration] = await Promise.all([
+      const [oauthIntegration, metaIntegration, tokenAgencia] = await Promise.all([
         getIntegration(input.clientId, "instagram_oauth"),
         getIntegration(input.clientId, "meta_token"),
+        getSystemSetting(CHAVE_TOKEN_AGENCIA),
       ]);
-      const accessToken = getProfileListingToken(oauthIntegration?.accessToken, metaIntegration?.accessToken);
-      if (!accessToken) throw new TRPCError({ code: "BAD_REQUEST", message: "Nenhuma autorização Meta disponível para listar perfis" });
+      const accessToken = getProfileListingToken(oauthIntegration?.accessToken, metaIntegration?.accessToken, tokenAgencia);
+      if (!accessToken) throw new TRPCError({ code: "BAD_REQUEST", message: "Nenhuma autorização Meta disponível para listar perfis. Salve o token da agência em Configurações." });
       return listInstagramProfiles(accessToken);
     }),
 

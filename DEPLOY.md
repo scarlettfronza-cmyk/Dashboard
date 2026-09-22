@@ -133,6 +133,16 @@ O token precisa destes escopos: `ads_read`, `business_management`,
 > de janeiro de 2024, que pode ter saído de suporte. A correção é uma linha em
 > `server/metaApi.ts`.
 
+### Instagram das clínicas
+
+O mesmo token da agência lê o Instagram. Na tela do cliente, seção
+**Instagram Business** → **Detectar perfis Instagram** → escolha o perfil →
+salvar. Só aparecem os perfis das Páginas do Facebook que o usuário do
+sistema enxerga: se faltar um, no Gerenciador de Negócios adicione a
+**Página** (e o Instagram vinculado a ela) aos ativos do usuário do sistema.
+O botão "Conectar via OAuth" só aparece se o app do Meta estiver
+configurado no servidor (`META_APP_ID` etc.); não é necessário.
+
 ## 6b. Quando os dados do Meta não aparecem
 
 Na configuração de cada cliente há o botão **Diagnosticar**. Ele percorre as

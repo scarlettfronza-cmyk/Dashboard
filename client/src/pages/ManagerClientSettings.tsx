@@ -723,7 +723,9 @@ export default function ManagerClientSettings() {
                   <>
                     <CheckCircle2 className="w-4 h-4" style={{ color: isIgExpired ? "oklch(0.65 0.22 25)" : "oklch(0.72 0.18 320)" }} />
                     <span className="text-sm" style={{ color: isIgExpired ? "oklch(0.65 0.22 25)" : "oklch(0.72 0.18 320)" }}>@{igStatus.data.username}</span>
-                    {igStatus.data.daysSince !== undefined && (
+                    {igStatus.data.viaAgencia ? (
+                      <span className="text-xs" style={{ color: "oklch(0.45 0.010 240)" }}>· lido com o token da agência</span>
+                    ) : igStatus.data.daysSince !== undefined && (
                       <span className="text-xs" style={{ color: "oklch(0.45 0.010 240)" }}>· token há {igStatus.data.daysSince} dias</span>
                     )}
                     {isIgExpired && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "oklch(0.65 0.22 25 / 0.15)", color: "oklch(0.75 0.22 25)" }}>Token expirado</span>}
@@ -737,7 +739,7 @@ export default function ManagerClientSettings() {
                   </p>
                 )}
               </div>
-              <button
+              {igStatus.data?.oauthDisponivel && <button
                 onClick={() => {
                   if (!token) return toast.error("Sessão de gestor expirada. Entre novamente.");
                   getOAuthUrlAsManager.mutate({ clientId, token });
@@ -751,13 +753,17 @@ export default function ManagerClientSettings() {
                 }}
               >
                 {igStatus.data?.connected ? (isIgExpired ? "🔄 Reconectar" : "🔄 Renovar token") : "🔗 Conectar via OAuth"}
-              </button>
+              </button>}
             </div>
 
             {/* Auto-detect from Meta token */}
-            {metaStatus.data?.connected && (
+            {(igStatus.data?.viaAgencia || metaStatus.data?.connected) && (
               <div className="flex flex-col gap-3 pt-3" style={{ borderTop: "1px solid oklch(0.22 0.012 255)" }}>
-                <p className="text-xs" style={{ color: "oklch(0.50 0.010 240)" }}>Ou detecte o perfil pelo token Meta Ads salvo:</p>
+                <p className="text-xs" style={{ color: "oklch(0.50 0.010 240)" }}>
+                  {igStatus.data?.viaAgencia
+                    ? "Detecte o perfil com o token da agência. Aparecem os perfis das Páginas que o usuário do sistema enxerga no Gerenciador de Negócios."
+                    : "Ou detecte o perfil pelo token Meta Ads salvo:"}
+                </p>
                 <button
                   onClick={handleListIgProfiles}
                   disabled={loadingIgProfiles}
