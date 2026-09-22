@@ -1,17 +1,27 @@
 /**
  * Z-API WhatsApp integration helper
  * Sends messages to WhatsApp groups via Z-API
+ *
+ * As credenciais são lidas a cada chamada (não na carga do módulo) para o
+ * status refletir o ambiente atual e para o servidor subir mesmo sem Z-API.
  */
+import { zapVarsFaltando } from "@shared/whatsappRelatorio";
 
 const ZAPI_BASE = "https://api.z-api.io";
-const INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
-const TOKEN = process.env.ZAPI_TOKEN;
-const CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN;
 
-function getHeaders() {
+function credenciais() {
+  return {
+    instanceId: process.env.ZAPI_INSTANCE_ID?.trim(),
+    token: process.env.ZAPI_TOKEN?.trim(),
+    clientToken: process.env.ZAPI_CLIENT_TOKEN?.trim(),
+    faltando: zapVarsFaltando(process.env),
+  };
+}
+
+function getHeaders(clientToken: string) {
   return {
     "Content-Type": "application/json",
-    "Client-Token": CLIENT_TOKEN || "",
+    "Client-Token": clientToken,
   };
 }
 
@@ -21,15 +31,16 @@ function getHeaders() {
  * @param message - The text message to send
  */
 export async function sendGroupMessage(groupId: string, message: string): Promise<{ success: boolean; error?: string }> {
-  if (!INSTANCE_ID || !TOKEN || !CLIENT_TOKEN) {
-    return { success: false, error: "Z-API credentials not configured" };
+  const c = credenciais();
+  if (c.faltando.length) {
+    return { success: false, error: `Z-API não configurado no servidor (faltam: ${c.faltando.join(", ")})` };
   }
 
   try {
-    const url = `${ZAPI_BASE}/instances/${INSTANCE_ID}/token/${TOKEN}/send-text`;
+    const url = `${ZAPI_BASE}/instances/${c.instanceId}/token/${c.token}/send-text`;
     const resp = await fetch(url, {
       method: "POST",
-      headers: getHeaders(),
+      headers: getHeaders(c.clientToken!),
       body: JSON.stringify({
         phone: groupId,
         message,
@@ -53,7 +64,8 @@ export async function sendGroupMessage(groupId: string, message: string): Promis
  * Get all WhatsApp groups the instance has access to (fetches all pages)
  */
 export async function listGroups(): Promise<{ id: string; name: string }[]> {
-  if (!INSTANCE_ID || !TOKEN || !CLIENT_TOKEN) return [];
+  const c = credenciais();
+  if (c.faltando.length) return [];
 
   const allGroups: { id: string; name: string }[] = [];
   let page = 1;
@@ -61,8 +73,8 @@ export async function listGroups(): Promise<{ id: string; name: string }[]> {
 
   try {
     while (true) {
-      const url = `${ZAPI_BASE}/instances/${INSTANCE_ID}/token/${TOKEN}/chats?onlyGroups=true&page=${page}&pageSize=${pageSize}`;
-      const resp = await fetch(url, { headers: getHeaders() });
+      const url = `${ZAPI_BASE}/instances/${c.instanceId}/token/${c.token}/chats?onlyGroups=true&page=${page}&pageSize=${pageSize}`;
+      const resp = await fetch(url, { headers: getHeaders(c.clientToken!) });
       if (!resp.ok) break;
       const data = await resp.json() as Array<{ phone?: string; name?: string }>;
       if (!Array.isArray(data) || data.length === 0) break;
@@ -81,20 +93,25 @@ export async function listGroups(): Promise<{ id: string; name: string }[]> {
 }
 
 /**
- * Check Z-API connection status
+ * Check Z-API connection status.
+ * `configurado` diz se as variáveis existem; `connected` se o celular está
+ * pareado na instância. São problemas diferentes, com soluções diferentes.
  */
-export async function checkStatus(): Promise<{ connected: boolean; error?: string }> {
-  if (!INSTANCE_ID || !TOKEN || !CLIENT_TOKEN) {
-    return { connected: false, error: "Credentials not configured" };
+export type StatusZap = { configurado: boolean; faltando: string[]; connected: boolean; error?: string };
+
+export async function checkStatus(): Promise<StatusZap> {
+  const c = credenciais();
+  if (c.faltando.length) {
+    return { configurado: false, faltando: c.faltando, connected: false };
   }
 
   try {
-    const url = `${ZAPI_BASE}/instances/${INSTANCE_ID}/token/${TOKEN}/status`;
-    const resp = await fetch(url, { headers: getHeaders() });
+    const url = `${ZAPI_BASE}/instances/${c.instanceId}/token/${c.token}/status`;
+    const resp = await fetch(url, { headers: getHeaders(c.clientToken!) });
     const data = await resp.json() as { connected?: boolean; error?: string };
-    return { connected: data.connected === true };
+    return { configurado: true, faltando: [], connected: data.connected === true, error: data.error };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return { connected: false, error: message };
+    return { configurado: true, faltando: [], connected: false, error: message };
   }
 }

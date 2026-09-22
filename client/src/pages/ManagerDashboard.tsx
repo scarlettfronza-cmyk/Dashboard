@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { RECURSOS_IA_ATIVOS } from "@/lib/recursosOcultos";
+import { EnviarWhatsApp } from "@/components/report/EnviarWhatsApp";
 import { shouldAutoSyncMonday } from "@/lib/mondaySync";
 import { calculateRate, calculateRevenueConcentration } from "@/lib/executiveMetrics";
 import { useLocation } from "wouter";
@@ -393,33 +394,12 @@ export default function ManagerDashboard() {
     awareness: { label: "Reconhecimento", emoji: "📢", color: "oklch(0.75 0.18 60 / 0.18)" },
   };
 
-  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const [showWhatsapp, setShowWhatsapp] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user'|'assistant', content: string}>>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
 
   const editReportWithChatMutation = trpc.managers.editReportWithChat.useMutation();
-
-  const sendWhatsappReport = trpc.whatsapp.sendReportAsManager.useMutation({
-    onSuccess: () => { toast.success("Relatório enviado no WhatsApp!"); setSendingWhatsapp(false); },
-    onError: (e: any) => { toast.error(e.message || "Erro ao enviar WhatsApp"); setSendingWhatsapp(false); },
-  });
-
-  const handleSendWhatsapp = () => {
-    if (!token || !activeClient || !activeClientWhatsappGroupId) {
-      toast.error("Grupo de WhatsApp não configurado. Configure nas Configurações do cliente.");
-      return;
-    }
-    setSendingWhatsapp(true);
-    sendWhatsappReport.mutate({
-      clientId: activeClient,
-      from: dateRange.from,
-      to: dateRange.to,
-      reportText: reportAnalysis || undefined,
-      origin: window.location.origin,
-      managerToken: token,
-    });
-  };
 
   const handleChatSend = async () => {
     if (!chatInput.trim() || chatLoading || !reportAnalysis) return;
@@ -556,24 +536,16 @@ export default function ManagerDashboard() {
                 🔗 Copiar Link
               </button>
               <button
-                onClick={handleSendWhatsapp}
-                disabled={sendingWhatsapp}
+                onClick={() => setShowWhatsapp(true)}
                 title={activeClientWhatsappGroupId ? "Enviar relatório no grupo de WhatsApp" : "Configure o grupo de WhatsApp nas configurações"}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
                 style={{
                   background: activeClientWhatsappGroupId ? 'rgba(37,211,102,0.18)' : 'rgba(255,255,255,0.06)',
                   color: activeClientWhatsappGroupId ? '#25D366' : 'oklch(0.45 0.010 240)',
                   border: activeClientWhatsappGroupId ? '1px solid rgba(37,211,102,0.4)' : '1px solid rgba(255,255,255,0.12)',
-                  opacity: sendingWhatsapp ? 0.7 : 1,
-                  cursor: sendingWhatsapp ? 'not-allowed' : 'pointer',
                 }}>
-                {sendingWhatsapp ? (
-                  <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                  </svg>
-                ) : <span>💬</span>}
-                <span className="hidden sm:inline">{sendingWhatsapp ? 'Enviando...' : 'WhatsApp'}</span>
+                <span>💬</span>
+                <span className="hidden sm:inline">WhatsApp</span>
               </button>
             </>
           )}
@@ -1125,6 +1097,20 @@ export default function ManagerDashboard() {
           )}
         </div>
       </div>
+
+      {/* Modal: prévia e envio do relatório no WhatsApp */}
+      {activeClient && token && (
+        <EnviarWhatsApp
+          open={showWhatsapp}
+          onClose={() => setShowWhatsapp(false)}
+          managerToken={token}
+          clientId={activeClient}
+          clientName={activeClientName}
+          from={dateRange.from}
+          to={dateRange.to}
+          onConfigurarGrupo={() => { setShowWhatsapp(false); navigate(`/manager/client/${activeClient}`); }}
+        />
+      )}
 
       {/* Modal: Novo Cliente */}
       <Dialog open={showNewClient} onOpenChange={setShowNewClient}>

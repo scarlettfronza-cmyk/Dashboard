@@ -10,7 +10,8 @@ import { crmRouter } from "./routers/crm";
 import { leadTrackingRouter } from "./routers/leadTracking";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { verifyManagerOwnsClient } from "./managerAuth";
+import { verifyManagerJwt, verifyManagerOwnsClient } from "./managerAuth";
+import { corpoPadrao, linkRelatorio, montarMensagemRelatorio } from "@shared/whatsappRelatorio";
 import { getClientsByUserId, createClient, deleteClient, getIntegrationsByClientId,
   getIntegration, upsertIntegration, getSnapshotsByClientId,
   getSnapshotsInRange, upsertSnapshot, getDb, getClientById,
@@ -2047,18 +2048,69 @@ const mondayRouter = router({
 });
 
 // ─── WhatsApp Router ─────────────────────────────────────────────
+/**
+ * Monta e envia a mensagem de relatório do cliente. Compartilhado pelas
+ * rotas de admin e de gestor para as duas não divergirem (antes eram duas
+ * cópias, e as duas mandavam o slug em vez do token público — link quebrado).
+ */
+async function enviarRelatorioDoCliente(input: { clientId: number; from: string; to: string; reportText?: string; origin: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const { clients: clientsTable } = await import("../drizzle/schema");
+  const rows = await db.select({
+    name: clientsTable.name,
+    publicToken: clientsTable.publicToken,
+    whatsappGroupId: clientsTable.whatsappGroupId,
+  }).from(clientsTable).where(drizzleEq(clientsTable.id, input.clientId)).limit(1);
+  const client = rows[0];
+  if (!client) throw new Error("Cliente não encontrado");
+  if (!client.whatsappGroupId) throw new Error("Grupo de WhatsApp não configurado para este cliente");
+  if (!client.publicToken) throw new Error("Este cliente não tem link público — gere um nas configurações do cliente");
+  const link = linkRelatorio(input.origin, client.publicToken, input.from, input.to);
+  const message = montarMensagemRelatorio({ clienteNome: client.name, from: input.from, to: input.to, texto: input.reportText }, link);
+  const { sendGroupMessage } = await import("./zapApi");
+  const r = await sendGroupMessage(client.whatsappGroupId, message);
+  if (!r.success) throw new Error(r.error || "O Z-API não aceitou a mensagem");
+  return { success: true as const, message };
+}
+
+const envioInput = z.object({
+  clientId: z.number(),
+  from: z.string(),
+  to: z.string(),
+  reportText: z.string().max(4000).optional(),
+  origin: z.string().url(),
+});
+
 const whatsappRouter = router({
-  // Get Z-API connection status
+  // Get Z-API connection status (admin)
   getStatus: protectedProcedure
     .query(async () => {
       const { checkStatus } = await import("./zapApi");
       return checkStatus();
     }),
 
-  // List all WhatsApp groups available in the Z-API instance
-  // publicProcedure so managers (non-admin JWT) can also call it
-  listGroups: publicProcedure
+  // Status para a gestora: existe configuração? o celular está pareado?
+  statusAsManager: publicProcedure
+    .input(z.object({ managerToken: z.string() }))
+    .query(async ({ input }) => {
+      await verifyManagerJwt(input.managerToken);
+      const { checkStatus } = await import("./zapApi");
+      return checkStatus();
+    }),
+
+  // List all WhatsApp groups available in the Z-API instance (admin)
+  listGroups: protectedProcedure
     .query(async () => {
+      const { listGroups } = await import("./zapApi");
+      return listGroups();
+    }),
+
+  // Idem para a gestora. Exige o JWT: a lista de grupos da agência não é pública.
+  listGroupsAsManager: publicProcedure
+    .input(z.object({ managerToken: z.string() }))
+    .query(async ({ input }) => {
+      await verifyManagerJwt(input.managerToken);
       const { listGroups } = await import("./zapApi");
       return listGroups();
     }),
@@ -2090,81 +2142,36 @@ const whatsappRouter = router({
       return { success: true };
     }),
 
-  // Send report link to WhatsApp group (admin)
-  sendReport: protectedProcedure
-    .input(z.object({
-      clientId: z.number(),
-      from: z.string(),
-      to: z.string(),
-      reportText: z.string().optional(),
-      origin: z.string(),
-    }))
-    .mutation(async ({ input }) => {
-      const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
-      const { clients: clientsTable } = await import("../drizzle/schema");
-      const rows = await db.select({
-        name: clientsTable.name,
-        slug: clientsTable.slug,
-        publicToken: clientsTable.publicToken,
-        whatsappGroupId: clientsTable.whatsappGroupId,
-      }).from(clientsTable).where(drizzleEq(clientsTable.id, input.clientId)).limit(1);
-      const client = rows[0];
-      if (!client) throw new Error("Cliente não encontrado");
-      if (!client.whatsappGroupId) throw new Error("Grupo de WhatsApp não configurado para este cliente");
-      const identifier = client.slug || client.publicToken;
-      const reportUrl = `${input.origin}/r/${identifier}`;
-      const period = `${input.from} a ${input.to}`;
-      // Use the custom report text if provided (edited by user via AI chat)
-      // Otherwise send just the link with a brief header
-      let message: string;
-      if (input.reportText && input.reportText.trim().length > 10) {
-        // User provided a custom/edited text - use it with the link appended
-        const cleanText = input.reportText.trim();
-        message = `${cleanText}\n\n🔗 ${reportUrl}`;
-      } else {
-        message = `📊 *Relatório ${client.name.trim()}*\n📅 Período: ${period}\n\n🔗 ${reportUrl}`;
-      }
-      const { sendGroupMessage } = await import("./zapApi");
-      return sendGroupMessage(client.whatsappGroupId, message);
-    }),
-
-  // Send report link to WhatsApp group (manager via JWT)
-  sendReportAsManager: publicProcedure
-    .input(z.object({
-      clientId: z.number(),
-      from: z.string(),
-      to: z.string(),
-      reportText: z.string().optional(),
-      origin: z.string(),
-      managerToken: z.string(),
-    }))
-    .mutation(async ({ input }) => {
+  // Prévia do que vai ser enviado, para a gestora ler e ajustar antes.
+  previewReportAsManager: publicProcedure
+    .input(z.object({ clientId: z.number(), from: z.string(), to: z.string(), origin: z.string().url(), managerToken: z.string() }))
+    .query(async ({ input }) => {
       await verifyManagerOwnsClient(input.managerToken, input.clientId);
       const db = await getDb();
       if (!db) throw new Error("DB unavailable");
       const { clients: clientsTable } = await import("../drizzle/schema");
-      const rows = await db.select({
-        name: clientsTable.name,
-        slug: clientsTable.slug,
-        publicToken: clientsTable.publicToken,
-        whatsappGroupId: clientsTable.whatsappGroupId,
-      }).from(clientsTable).where(drizzleEq(clientsTable.id, input.clientId)).limit(1);
+      const rows = await db.select({ name: clientsTable.name, publicToken: clientsTable.publicToken, whatsappGroupId: clientsTable.whatsappGroupId })
+        .from(clientsTable).where(drizzleEq(clientsTable.id, input.clientId)).limit(1);
       const client = rows[0];
       if (!client) throw new Error("Cliente não encontrado");
-      if (!client.whatsappGroupId) throw new Error("Grupo de WhatsApp não configurado para este cliente");
-      const identifier = client.slug || client.publicToken;
-      const reportUrl = `${input.origin}/r/${identifier}`;
-      const period = `${input.from} a ${input.to}`;
-      let message: string;
-      if (input.reportText && input.reportText.trim().length > 10) {
-        const cleanText = input.reportText.trim();
-        message = `${cleanText}\n\n🔗 ${reportUrl}`;
-      } else {
-        message = `📊 *Relatório ${client.name.trim()}*\n📅 Período: ${period}\n\n🔗 ${reportUrl}`;
-      }
-      const { sendGroupMessage } = await import("./zapApi");
-      return sendGroupMessage(client.whatsappGroupId, message);
+      return {
+        corpo: corpoPadrao({ clienteNome: client.name, from: input.from, to: input.to }),
+        link: client.publicToken ? linkRelatorio(input.origin, client.publicToken, input.from, input.to) : null,
+        grupoConfigurado: !!client.whatsappGroupId,
+      };
+    }),
+
+  // Send report link to WhatsApp group (admin)
+  sendReport: protectedProcedure
+    .input(envioInput)
+    .mutation(async ({ input }) => enviarRelatorioDoCliente(input)),
+
+  // Send report link to WhatsApp group (manager via JWT)
+  sendReportAsManager: publicProcedure
+    .input(envioInput.extend({ managerToken: z.string() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.managerToken, input.clientId);
+      return enviarRelatorioDoCliente(input);
     }),
 });
 

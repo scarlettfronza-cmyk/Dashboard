@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { TokenAgencia } from "@/components/report/TokenAgencia";
+import { StatusWhatsApp } from "@/components/report/StatusWhatsApp";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { ArrowLeft, Search, Trash2 } from "lucide-react";
@@ -81,6 +82,7 @@ export default function ManagerSettings() {
         <div className="px-5 py-5 max-w-6xl mx-auto">
 
           <TokenAgencia managerToken={token ?? ""} />
+          <StatusWhatsApp managerToken={token ?? ""} />
 
           {/* Search bar */}
           <div className="relative mb-5">

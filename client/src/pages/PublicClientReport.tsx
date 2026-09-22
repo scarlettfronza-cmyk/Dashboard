@@ -11,6 +11,7 @@ import { Capa, Eyebrow, Statement, Texto, Destaque } from "@/components/report/R
 import { PrintStyles } from "@/components/report/PrintStyles";
 import { lerPeriodo } from "@/lib/analiseRelatorio";
 import { PeriodPicker } from "@/components/report/PeriodPicker";
+import { lerPeriodoDaUrl } from "@shared/whatsappRelatorio";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function formatDate(d: Date) {
@@ -148,8 +149,11 @@ export default function PublicClientReport() {
   const tabsRef = useRef<HTMLDivElement>(null);
 
   const now = new Date();
-  const [fromDate, setFromDate] = useState<Date>(() => new Date(now.getFullYear(), now.getMonth(), 1));
-  const [toDate, setToDate] = useState<Date>(() => startOfDay(now));
+  // O link mandado no WhatsApp traz o período analisado (?de=&ate=); sem
+  // ele, ou se vier inválido, abre no mês atual como sempre.
+  const periodoDaUrl = typeof window !== "undefined" ? lerPeriodoDaUrl(window.location.search, now) : null;
+  const [fromDate, setFromDate] = useState<Date>(() => periodoDaUrl?.from ?? new Date(now.getFullYear(), now.getMonth(), 1));
+  const [toDate, setToDate] = useState<Date>(() => periodoDaUrl?.to ?? startOfDay(now));
   const dateRange = useMemo(() => ({ from: formatDate(fromDate), to: formatDate(toDate) }), [fromDate, toDate]);
 
   const [mondayAutoSyncing, setMondayAutoSyncing] = useState(false);

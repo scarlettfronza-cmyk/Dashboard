@@ -229,8 +229,8 @@ export default function ManagerClientSettings() {
     },
   });
 
-  const { data: zapGroups, isLoading: loadingGroups, refetch: refetchGroups } = trpc.whatsapp.listGroups.useQuery(
-    undefined,
+  const { data: zapGroups, isLoading: loadingGroups, refetch: refetchGroups } = trpc.whatsapp.listGroupsAsManager.useQuery(
+    { managerToken: token ?? "" },
     { enabled: false }
   );
 

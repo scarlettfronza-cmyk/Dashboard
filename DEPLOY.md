@@ -157,6 +157,34 @@ O token pode ser guardado uma vez só, em **Configurações** do painel de
 gestor, e passa a valer para todas as clínicas. A conta de anúncio continua
 sendo escolhida em cada uma.
 
+## 6c. WhatsApp (Z-API)
+
+O relatório sai pelo botão **💬 WhatsApp** do painel, no grupo de cada
+clínica. Os grupos já vieram no backup (18 das 19 clínicas); o que falta é
+ligar o servidor à sua conta do Z-API.
+
+1. Entre em [app.z-api.io](https://app.z-api.io) e abra a sua instância.
+   Se o celular da agência estiver despareado, escaneie o QR code ali.
+2. Na instância, copie três valores: **ID da instância**, **Token** e, em
+   *Segurança*, o **Client-Token** da conta.
+3. No Railway, serviço do dashboard → **Variables** → **New Variable**,
+   uma por vez:
+
+   | Nome | Valor |
+   |---|---|
+   | `ZAPI_INSTANCE_ID` | o ID da instância |
+   | `ZAPI_TOKEN` | o token da instância |
+   | `ZAPI_CLIENT_TOKEN` | o Client-Token |
+
+4. Espere o serviço reiniciar. Em **Configurações** do painel, o card
+   *WhatsApp da agência* deve mostrar **conectado**. Se mostrar
+   *despareado*, é o QR code do passo 1; se mostrar *pendente*, ele lista
+   qual variável ainda falta.
+
+Ao clicar em **💬 WhatsApp** no painel, abre uma prévia da mensagem — o
+texto pode ser ajustado antes de enviar. O link já abre o relatório no
+período que estava selecionado no painel.
+
 ## 7. Conferir
 
 - `SEU-ENDERECO/manager/login` abre a tela de entrada
