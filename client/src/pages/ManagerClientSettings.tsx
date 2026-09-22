@@ -129,7 +129,6 @@ export default function ManagerClientSettings() {
   const [, setLocation] = useLocation();
 
   // Meta token state
-  const [metaToken, setMetaToken] = useState("");
   const [adAccountId, setAdAccountId] = useState("");
   const [adAccountName, setAdAccountName] = useState("");
   const [adAccounts, setAdAccounts] = useState<Array<{ id: string; name: string; currency: string }>>([]);
@@ -297,24 +296,17 @@ export default function ManagerClientSettings() {
     { enabled: !!token && !!clientId }
   );
 
-  const listAccountsMutation = trpc.managers.listAdAccountsAsManager.useMutation({
-    onSuccess: (data) => { setAdAccounts(data || []); setAccountsListed(true); setMetaStep("idle"); },
+  const buscarContas = trpc.managers.listarContasDoCliente.useMutation({
+    onSuccess: (d) => { setAdAccounts(d.contas || []); setAccountsListed(true); setMetaStep("idle"); },
     onError: (err) => { toast.error(err.message); setAccountsListed(true); setMetaStep("idle"); },
   });
 
-  const validateTokenMutation = trpc.managers.validateMetaTokenAsManager.useMutation({
-    onSuccess: (r) => {
-      if (r.valid) {
-        toast.success(`Token válido! Conta: ${r.name}`);
-        setMetaStep("listing");
-        listAccountsMutation.mutate({ token: token!, accessToken: metaToken.trim() });
-      } else {
-        toast.error(`Token inválido: ${r.error}`);
-        setMetaStep("idle");
-      }
-    },
-    onError: () => { toast.error("Erro ao validar token"); setMetaStep("idle"); },
+  const salvarConta = trpc.managers.salvarContaDoCliente.useMutation({
+    onSuccess: () => { toast.success("Conta de anúncio salva!"); setMetaStep("idle"); metaStatus.refetch?.(); },
+    onError: (err) => { toast.error(err.message); setMetaStep("idle"); },
   });
+
+
 
   const verifyManualAccountMutation = trpc.managers.verifyAdAccountAsManager.useMutation({
     onSuccess: (data) => {
@@ -361,16 +353,6 @@ export default function ManagerClientSettings() {
     && (account.name.toLowerCase().includes(addAccountSearch.toLowerCase()) || account.id.includes(addAccountSearch))
   );
 
-  const saveMetaToken = trpc.managers.saveClientMetaToken.useMutation({
-    onSuccess: () => {
-      toast.success("Token Meta salvo com sucesso!");
-      metaStatus.refetch();
-      setMetaToken("");
-      setAdAccounts([]);
-      setAdAccountId("");
-    },
-    onError: (err) => toast.error(err.message),
-  });
 
   const listIgProfilesMutation = trpc.managers.listClientInstagramProfiles.useMutation({
     onSuccess: (data) => { setIgProfiles(data || []); setLoadingIgProfiles(false); },
@@ -381,12 +363,6 @@ export default function ManagerClientSettings() {
     onSuccess: () => { toast.success("Instagram configurado!"); igStatus.refetch(); setIgUsername(""); setIgUserId(""); setIgProfiles([]); },
     onError: (err) => toast.error(err.message),
   });
-
-  const handleListAccounts = () => {
-    if (!metaToken.trim() || !token) return;
-    setMetaStep("listing");
-    listAccountsMutation.mutate({ token, accessToken: metaToken.trim() });
-  };
 
   const handleListIgProfiles = () => {
     if (!token) return;
@@ -593,33 +569,23 @@ export default function ManagerClientSettings() {
                 )}
               </div>
             )}
-            {/* Step 1: Token + Validar */}
+            {/* O token é da agência, configurado uma vez em Configurações.
+                Pedir token aqui de novo confundia sobre qual valia. */}
             <div>
-              <label className="text-xs font-medium mb-1.5 block" style={{ color: "oklch(0.65 0.010 240)" }}>1. Token de acesso (começa com EAA...)</label>
-              <div className="flex gap-2">
-                <input type="password" value={metaToken} onChange={(e) => setMetaToken(e.target.value)} placeholder="EAAxxxxxxxxxx..."
-                  className="flex-1 px-3 py-2 text-sm rounded-md outline-none transition-all"
-                  style={{ background: "oklch(0.18 0.012 255)", border: "1px solid oklch(0.30 0.012 255)", color: "oklch(0.90 0.005 220)" }}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = "oklch(0.60 0.18 240 / 0.6)"; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = "oklch(0.30 0.012 255)"; }}
-                />
-                <button
-                  onClick={() => { if (!metaToken.trim() || !token) return; setMetaStep("validating"); validateTokenMutation.mutate({ token, accessToken: metaToken.trim() }); }}
-                  disabled={!metaToken || metaStep === "validating" || metaStep === "listing" || !token}
-                  className="px-4 py-2 text-xs font-semibold rounded-md whitespace-nowrap transition-all"
-                  style={{ background: "oklch(0.60 0.18 240)", color: "white", opacity: !metaToken || metaStep === "validating" || metaStep === "listing" ? 0.5 : 1 }}
-                >
-                  {metaStep === "validating" ? "Validando..." : metaStep === "listing" ? "Buscando..." : "Validar"}
-                </button>
-              </div>
-              <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs mt-1.5 transition-all"
-                style={{ color: "oklch(0.55 0.18 240)" }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = "oklch(0.70 0.18 240)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "oklch(0.55 0.18 240)"; }}
+              <button
+                onClick={() => { if (!token) return; setMetaStep("listing"); buscarContas.mutate({ token, clientId }); }}
+                disabled={!token || metaStep === "listing"}
+                className="w-full py-2.5 text-xs font-semibold rounded-md transition-all"
+                style={{
+                  background: metaStep === "listing" ? "oklch(0.22 0.012 255)" : "oklch(0.60 0.18 240)",
+                  color: "white", opacity: metaStep === "listing" ? 0.7 : 1,
+                }}
               >
-                <Search className="w-3 h-3" /> Gerar token no Graph API Explorer
-              </a>
+                {metaStep === "listing" ? "Buscando contas…" : "Buscar contas de anúncio"}
+              </button>
+              <p className="text-[11px] mt-2 mb-0" style={{ color: "oklch(0.50 0.010 240)" }}>
+                Usa o token do Meta da agência, salvo em Configurações.
+              </p>
             </div>
             {/* Step 2: Conta de anúncio — dropdown pesquisável */}
             {(adAccounts.length > 0 || accountsListed) && (
@@ -681,10 +647,10 @@ export default function ManagerClientSettings() {
                       className="flex-1 px-3 py-2 text-xs rounded-md outline-none"
                       style={{ background: "oklch(0.15 0.012 255)", border: "1px solid oklch(0.32 0.012 255)", color: "oklch(0.90 0.005 220)" }}
                     />
-                    <button type="button" disabled={!manualAccountId.trim() || verifyingManual || !token || !metaToken.trim()}
-                      onClick={() => { if (!manualAccountId.trim() || !token || !metaToken.trim()) return; setVerifyingManual(true); verifyManualAccountMutation.mutate({ token, clientId, adAccountId: manualAccountId.trim(), accessToken: metaToken.trim() }); }}
+                    <button type="button" disabled={!manualAccountId.trim() || verifyingManual || !token}
+                      onClick={() => { if (!manualAccountId.trim() || !token) return; setVerifyingManual(true); verifyManualAccountMutation.mutate({ token, clientId, adAccountId: manualAccountId.trim() }); }}
                       className="px-3 py-2 text-xs font-semibold rounded-md transition-all"
-                      style={{ background: "oklch(0.55 0.18 240)", color: "white", opacity: !manualAccountId.trim() || verifyingManual || !metaToken.trim() ? 0.5 : 1 }}
+                      style={{ background: "oklch(0.55 0.18 240)", color: "white", opacity: !manualAccountId.trim() || verifyingManual ? 0.5 : 1 }}
                     >
                       {verifyingManual ? "Verificando..." : "Verificar"}
                     </button>
@@ -700,15 +666,15 @@ export default function ManagerClientSettings() {
             {(adAccounts.length > 0 || adAccountId) && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => { if (!adAccountId || !token) return; setMetaStep("saving"); saveMetaToken.mutate({ token, clientId, accessToken: metaToken.trim(), adAccountId }); }}
-                  disabled={!adAccountId || metaStep === "saving" || !metaToken.trim()}
+                  onClick={() => { if (!adAccountId || !token) return; setMetaStep("saving"); salvarConta.mutate({ token, clientId, adAccountId }); }}
+                  disabled={!adAccountId || metaStep === "saving"}
                   className="flex-1 py-2 text-xs font-semibold rounded-md transition-all"
-                  style={{ background: "oklch(0.68 0.16 160)", color: "white", opacity: !adAccountId || metaStep === "saving" || !metaToken.trim() ? 0.5 : 1 }}
+                  style={{ background: "oklch(0.68 0.16 160)", color: "white", opacity: !adAccountId || metaStep === "saving" ? 0.5 : 1 }}
                 >
                   {metaStep === "saving" ? "Salvando..." : "Salvar conexão"}
                 </button>
                 <button
-                  onClick={() => { setMetaToken(""); setAdAccountId(""); setAdAccountName(""); setAdAccounts([]); setAccountsListed(false); setMetaStep("idle"); }}
+                  onClick={() => { setAdAccountId(""); setAdAccountName(""); setAdAccounts([]); setAccountsListed(false); setMetaStep("idle"); }}
                   className="flex-1 py-2 text-xs font-medium rounded-md transition-all"
                   style={{ border: "1px solid oklch(0.30 0.012 255)", color: "oklch(0.55 0.010 240)", background: "transparent" }}
                 >Cancelar</button>
@@ -720,19 +686,6 @@ export default function ManagerClientSettings() {
               <DiagnosticoMeta managerToken={token} clientId={clientId} />
             )}
 
-            {/* Instructions */}
-            <div className="p-3 rounded-lg text-xs" style={{ background: "oklch(0.14 0.012 255)", border: "1px solid oklch(0.24 0.012 255)" }}>
-              <div className="font-semibold mb-2 text-white flex items-center gap-1.5">
-                <span style={{ color: "oklch(0.75 0.18 60)" }}>⚠</span> Como gerar o token
-              </div>
-              <ol className="flex flex-col gap-1 list-decimal list-inside" style={{ color: "oklch(0.55 0.010 240)" }}>
-                <li>Acesse o <span className="text-white">Graph API Explorer</span> (link acima)</li>
-                <li>Selecione o app <span className="text-white">Monitor Ads Escarlate</span></li>
-                <li>Clique em <span className="text-white">Generate Access Token</span></li>
-                <li>Marque: <span className="text-white">ads_read, ads_management, instagram_basic, instagram_manage_insights, pages_read_engagement</span></li>
-                <li>Copie o token gerado e cole acima</li>
-              </ol>
-            </div>
           </div>
 
           <div className="flex items-center justify-between p-3 rounded-xl" style={{ background: "oklch(0.16 0.012 255)", border: "1px solid oklch(0.26 0.012 255)" }}>

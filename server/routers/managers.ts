@@ -316,6 +316,46 @@ export const managersRouter = router({
     }),
 
   // ── List ad accounts using a token (manager JWT auth) ──────────────────────
+  // Com o token da agência guardado uma vez, a tela do cliente não precisa
+  // mais pedir token: as contas são buscadas com o token já configurado.
+  listarContasDoCliente: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const { getSystemSetting } = await import("../_core/systemRouter");
+      const { resolverToken, CHAVE_TOKEN_AGENCIA } = await import("../metaTokenResolver");
+      const [tokenAgencia, integracao] = await Promise.all([
+        getSystemSetting(CHAVE_TOKEN_AGENCIA),
+        getIntegration(input.clientId, "meta_token"),
+      ]);
+      const r = resolverToken(tokenAgencia, integracao);
+      if (!r.token) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Nenhum token do Meta configurado. Salve o token da agência em Configurações.",
+        });
+      }
+      const contas = await listAdAccounts(r.token);
+      return { contas, origem: r.origem };
+    }),
+
+  // Salva apenas o vínculo com a conta de anúncio, preservando o token que já
+  // estiver gravado: com o token da agência, não há token por cliente a enviar.
+  salvarContaDoCliente: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number(), adAccountId: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const atual = await getIntegration(input.clientId, "meta_token");
+      await upsertIntegration({
+        clientId: input.clientId,
+        provider: "meta_token",
+        accessToken: atual?.accessToken ?? "",
+        adAccountId: input.adAccountId.trim(),
+        boardId: null,
+      });
+      return { success: true };
+    }),
+
   listAdAccountsAsManager: publicProcedure
     .input(z.object({ token: z.string(), accessToken: z.string() }))
     .mutation(async ({ input }) => {
@@ -345,12 +385,18 @@ export const managersRouter = router({
     .mutation(async ({ input }) => {
       await verifyManagerOwnsClient(input.token, input.clientId);
       // Use the provided accessToken if available, otherwise fall back to the saved one
+      // Sem token informado, usa o da agência e, na falta dele, o do cliente.
       let tokenToUse = input.accessToken?.trim();
       if (!tokenToUse) {
-        const integration = await getIntegration(input.clientId, "meta_token");
-        tokenToUse = integration?.accessToken ?? undefined;
+        const { getSystemSetting } = await import("../_core/systemRouter");
+        const { resolverToken, CHAVE_TOKEN_AGENCIA } = await import("../metaTokenResolver");
+        const [tokenAgencia, integracao] = await Promise.all([
+          getSystemSetting(CHAVE_TOKEN_AGENCIA),
+          getIntegration(input.clientId, "meta_token"),
+        ]);
+        tokenToUse = resolverToken(tokenAgencia, integracao).token ?? undefined;
       }
-      if (!tokenToUse) throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o token Meta no campo acima antes de verificar a conta." });
+      if (!tokenToUse) throw new TRPCError({ code: "BAD_REQUEST", message: "Nenhum token do Meta configurado. Salve o token da agência em Configurações." });
       return verifyAdAccountAccess(tokenToUse, input.adAccountId);
     }),
 
