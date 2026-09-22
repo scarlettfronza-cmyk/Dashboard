@@ -15,6 +15,7 @@ import ManagerLogin from "./pages/ManagerLogin";
 import ManagerDashboard from "./pages/ManagerDashboard";
 import ManagerClientSettings from "./pages/ManagerClientSettings";
 import ManagerSettings from "./pages/ManagerSettings";
+import { RECURSOS_IA_ATIVOS } from "./lib/recursosOcultos";
 import ManagerIntelligence from "./pages/ManagerIntelligence";
 import ManagerCreativeAnalyst from "./pages/ManagerCreativeAnalyst";
 import ManagerCreativeAgent from "./pages/ManagerCreativeAgent";
@@ -49,12 +50,16 @@ function Router() {
       <Route path="/manager/login" component={ManagerLogin} />
       <Route path="/manager/dashboard" component={ManagerDashboard} />
       <Route path="/manager/settings" component={ManagerSettings} />
-      <Route path="/manager/intelligence" component={ManagerIntelligence} />
-      <Route path="/manager/creative-analyst" component={ManagerCreativeAnalyst} />
-      <Route path="/manager/creative-agent" component={ManagerCreativeAgent} />
-      <Route path="/manager/creative-visuals" component={ManagerCreativeVisuals} />
-      <Route path="/manager/before-after" component={ManagerBeforeAfterStudio} />
-      <Route path="/manager/campaign-agent" component={ManagerCampaignAgent} />
+      {RECURSOS_IA_ATIVOS && (
+        <>
+          <Route path="/manager/intelligence" component={ManagerIntelligence} />
+          <Route path="/manager/creative-analyst" component={ManagerCreativeAnalyst} />
+          <Route path="/manager/creative-agent" component={ManagerCreativeAgent} />
+          <Route path="/manager/creative-visuals" component={ManagerCreativeVisuals} />
+          <Route path="/manager/before-after" component={ManagerBeforeAfterStudio} />
+          <Route path="/manager/campaign-agent" component={ManagerCampaignAgent} />
+        </>
+      )}
       <Route path="/manager/client/:id" component={ManagerClientSettings} />
       <Route path="/r/:token" component={PublicClientReport} />
       <Route path="/crm" component={CRMPage} />

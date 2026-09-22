@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { RECURSOS_IA_ATIVOS } from "@/lib/recursosOcultos";
 import { shouldAutoSyncMonday } from "@/lib/mondaySync";
 import { calculateRate, calculateRevenueConcentration } from "@/lib/executiveMetrics";
 import { useLocation } from "wouter";
@@ -250,7 +251,7 @@ export default function ManagerDashboard() {
   const [activeClient, setActiveClient] = useState<number | null>(null);
   const [showClientSidebar, setShowClientSidebar] = useState(false);
   const [activeTab, setActiveTab] = useState<"kpis" | "crm" | "conteudos" | "criativos">("kpis");
-  const [showRightPanel, setShowRightPanel] = useState(true);
+  const [showRightPanel, setShowRightPanel] = useState(RECURSOS_IA_ATIVOS);
   const [reportAnalysis, setReportAnalysis] = useState<string | null>(null);
   const [reportAnalysisLoading, setReportAnalysisLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -576,7 +577,7 @@ export default function ManagerDashboard() {
               </button>
             </>
           )}
-          {activeClient && (
+          {RECURSOS_IA_ATIVOS && activeClient && (
             <button onClick={() => setShowRightPanel(p => !p)}
               className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
               style={{ background: showRightPanel ? 'rgba(230,57,70,0.28)' : 'rgba(230,57,70,0.15)', color: '#ff8a94', border: `1px solid rgba(230,57,70,${showRightPanel ? '0.55' : '0.38'})` }}>
@@ -630,26 +631,30 @@ export default function ManagerDashboard() {
               <Settings className="w-3.5 h-3.5" />
               Configurações
             </button>
-            <button onClick={() => navigate("/manager/intelligence")}
-              className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-fuchsia-300 hover:border-fuchsia-400/30 hover:bg-fuchsia-500/5">
-              <Sparkles className="w-3.5 h-3.5" />
-              Inteligência
-            </button>
-            <button onClick={() => navigate("/manager/creative-analyst")}
-              className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-violet-300 hover:border-violet-400/30 hover:bg-violet-500/5">
-              <Sparkles className="w-3.5 h-3.5" />
-              Creative Analyst
-            </button>
-            <button onClick={() => navigate("/manager/creative-agent")}
-              className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-fuchsia-300 hover:border-fuchsia-400/30 hover:bg-fuchsia-500/5">
-              <TestTube2 className="w-3.5 h-3.5" />
-              Creative Agent
-            </button>
-            <button onClick={() => navigate("/manager/campaign-agent")}
-              className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-amber-200 hover:border-amber-400/30 hover:bg-amber-500/5">
-              <Sparkles className="w-3.5 h-3.5" />
-              Campaign Agent
-            </button>
+            {RECURSOS_IA_ATIVOS && (
+              <>
+                <button onClick={() => navigate("/manager/intelligence")}
+                  className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-fuchsia-300 hover:border-fuchsia-400/30 hover:bg-fuchsia-500/5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Inteligência
+                </button>
+                <button onClick={() => navigate("/manager/creative-analyst")}
+                  className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-violet-300 hover:border-violet-400/30 hover:bg-violet-500/5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Creative Analyst
+                </button>
+                <button onClick={() => navigate("/manager/creative-agent")}
+                  className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-fuchsia-300 hover:border-fuchsia-400/30 hover:bg-fuchsia-500/5">
+                  <TestTube2 className="w-3.5 h-3.5" />
+                  Creative Agent
+                </button>
+                <button onClick={() => navigate("/manager/campaign-agent")}
+                  className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-amber-200 hover:border-amber-400/30 hover:bg-amber-500/5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Campaign Agent
+                </button>
+              </>
+            )}
           </div>
         </aside>
 
@@ -1010,7 +1015,7 @@ export default function ManagerDashboard() {
           </main>
 
           {/* Right Panel: Análise IA */}
-          {showRightPanel && activeClient && (
+          {RECURSOS_IA_ATIVOS && showRightPanel && activeClient && (
             <div className="hidden lg:flex flex-col w-[420px] xl:w-[480px] flex-shrink-0 border-l border-border bg-card/30 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-border flex-shrink-0">
                 <div>
