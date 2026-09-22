@@ -133,6 +133,30 @@ O token precisa destes escopos: `ads_read`, `business_management`,
 > de janeiro de 2024, que pode ter saído de suporte. A correção é uma linha em
 > `server/metaApi.ts`.
 
+## 6b. Quando os dados do Meta não aparecem
+
+Na configuração de cada cliente há o botão **Diagnosticar**. Ele percorre as
+camadas em ordem e para no primeiro impedimento:
+
+1. de onde vem o token, da agência ou do cliente;
+2. se o Meta aceita o token;
+3. quantas contas de anúncio esse token alcança;
+4. se a conta escolhida está entre elas;
+5. se houve investimento no período.
+
+Dois resultados costumam confundir:
+
+- **"não está entre as visíveis"** — compartilhar a conta como parceiro não
+  basta. Ela precisa ser atribuída ao usuário do sistema que gerou o token,
+  dentro do portfólio da agência.
+- **"sem investimento no período"** — a configuração está correta e a conta
+  responde; simplesmente não houve gasto. As campanhas podem estar em outra
+  conta da mesma clínica.
+
+O token pode ser guardado uma vez só, em **Configurações** do painel de
+gestor, e passa a valer para todas as clínicas. A conta de anúncio continua
+sendo escolhida em cada uma.
+
 ## 7. Conferir
 
 - `SEU-ENDERECO/manager/login` abre a tela de entrada
