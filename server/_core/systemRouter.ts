@@ -30,6 +30,7 @@ async function setSystemSettingInternal(key: string, value: string): Promise<voi
 
 // Export helper for use in other modules (e.g. mondaySync)
 export { getSystemSettingInternal as getSystemSetting };
+export { setSystemSettingInternal as setSystemSetting };
 
 export const systemRouter = router({
   health: publicProcedure

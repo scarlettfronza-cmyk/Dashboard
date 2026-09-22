@@ -355,6 +355,49 @@ export const managersRouter = router({
     }),
 
   // ── Save Meta token for a client (manager JWT auth) ────────────────────────
+  // ── Token da agência: um só para todos os clientes ────────────────────────
+  // Guardar o token por cliente obrigava a colar o mesmo valor em cada um e a
+  // repetir tudo a cada renovação. Como a agência usa um único usuário do
+  // sistema no Meta, o token é um só — a conta de anúncio é que é por cliente.
+  getTokenAgencia: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const { getSystemSetting } = await import("../_core/systemRouter");
+      const { CHAVE_TOKEN_AGENCIA } = await import("../metaTokenResolver");
+      const valor = await getSystemSetting(CHAVE_TOKEN_AGENCIA);
+      // O token nunca volta para a tela; só se ele existe e como termina,
+      // o bastante para conferir qual está salvo sem expor a credencial.
+      return {
+        configurado: Boolean(valor),
+        final: valor ? valor.slice(-6) : null,
+      };
+    }),
+
+  salvarTokenAgencia: publicProcedure
+    .input(z.object({ token: z.string(), accessToken: z.string().min(20, "Token muito curto") }))
+    .mutation(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const validacao = await validateMetaToken(input.accessToken.trim());
+      if (!validacao.valid) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: validacao.error ?? "Token inválido" });
+      }
+      const { setSystemSetting } = await import("../_core/systemRouter");
+      const { CHAVE_TOKEN_AGENCIA } = await import("../metaTokenResolver");
+      await setSystemSetting(CHAVE_TOKEN_AGENCIA, input.accessToken.trim());
+      return { success: true, nome: validacao.name ?? null };
+    }),
+
+  removerTokenAgencia: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const { setSystemSetting } = await import("../_core/systemRouter");
+      const { CHAVE_TOKEN_AGENCIA } = await import("../metaTokenResolver");
+      await setSystemSetting(CHAVE_TOKEN_AGENCIA, "");
+      return { success: true };
+    }),
+
   saveClientMetaToken: publicProcedure
     .input(z.object({ token: z.string(), clientId: z.number(), accessToken: z.string(), adAccountId: z.string() }))
     .mutation(async ({ input }) => {

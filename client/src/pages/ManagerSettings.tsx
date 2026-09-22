@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { TokenAgencia } from "@/components/report/TokenAgencia";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { ArrowLeft, Search, Trash2 } from "lucide-react";
@@ -78,6 +79,8 @@ export default function ManagerSettings() {
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
         <div className="px-5 py-5 max-w-6xl mx-auto">
+
+          <TokenAgencia managerToken={token ?? ""} />
 
           {/* Search bar */}
           <div className="relative mb-5">

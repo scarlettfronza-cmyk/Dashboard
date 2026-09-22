@@ -1,6 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
+import { systemRouter, getSystemSetting } from "./_core/systemRouter";
+import { resolverToken, CHAVE_TOKEN_AGENCIA } from "./metaTokenResolver";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { managersRouter } from "./routers/managers";
 import { publicRouter } from "./routers/public";
@@ -516,12 +517,19 @@ async function getSalesUploadInfo(clientId: number) {
 
 // ─── Shared KPI Fetcher (used by getKpis and generateReport) ────────────────
 export async function fetchClientKpis(clientId: number, from: string, to: string, salesChannelFilter?: string | null) {
-  const [metaTokenIntegration, sheetsIntegration, salesIntegration, followersIntegration] = await Promise.all([
+  const [metaTokenIntegrationRaw, sheetsIntegration, salesIntegration, followersIntegration, tokenAgencia] = await Promise.all([
     getIntegration(clientId, "meta_token"),
     getIntegration(clientId, "google_sheets"),
     getIntegration(clientId, "sales_sheet"),
     getIntegration(clientId, "followers_sheet"),
+    getSystemSetting(CHAVE_TOKEN_AGENCIA),
   ]);
+
+  // O token pode vir da agência; a conta de anúncio é sempre do cliente.
+  const tokenMeta = resolverToken(tokenAgencia, metaTokenIntegrationRaw);
+  const metaTokenIntegration = tokenMeta.token
+    ? { ...(metaTokenIntegrationRaw ?? {}), accessToken: tokenMeta.token, adAccountId: tokenMeta.adAccountId }
+    : metaTokenIntegrationRaw;
   let investimento = 0, leads = 0, novosSeguidores = 0, vendas = 0, totalEmVendas = 0;
   let revenueSource: RevenueSourceType = "unavailable";
   let revenueUploadedAt: Date | null = null;
