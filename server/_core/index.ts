@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerMetaOAuthRoutes } from "../metaOAuth";
 import { registerRestoreRoute } from "../restoreRoute";
 import { registerRecoveryRoute } from "../recoveryRoute";
+import { garantirTabelas } from "../schemaGuard";
 import { registerSalesUploadRoute } from "../salesUpload";
 import { registerScheduledRoutes } from "../scheduledRoutes";
 import { startMondayCron } from "../mondayCron";
@@ -36,6 +37,9 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  // Backup restaurado pode não ter todas as tabelas que o código espera.
+  await garantirTabelas();
+
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads

@@ -71,25 +71,31 @@ async function requirePublicClient(token: string, eventType: string, managerToke
       .limit(1);
 
     if (assignment.length === 0) {
-      await db.insert(publicReportAccessLogs).values({
-        clientId: client.id,
-        managerId,
-        eventType: "manager_cross_client_blocked",
-        tokenFingerprint,
-      });
+      await registrarAcesso(db, { clientId: client.id, managerId, eventType: "manager_cross_client_blocked", tokenFingerprint });
       await alertCrossClientAccess(managerId, client.id);
       throw new TRPCError({ code: "FORBIDDEN", message: "Este relatório não pertence à sua carteira." });
     }
   }
 
-  await db.insert(publicReportAccessLogs).values({
-    clientId: client.id,
-    managerId,
-    eventType,
-    tokenFingerprint,
-  });
+  await registrarAcesso(db, { clientId: client.id, managerId, eventType, tokenFingerprint });
 
   return { db, client };
+}
+
+/**
+ * Registro de auditoria. Se falhar (tabela ausente num banco restaurado de
+ * backup, por exemplo), o relatório do cliente continua abrindo: auditoria
+ * não pode valer mais que o serviço que ela audita.
+ */
+async function registrarAcesso(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  valores: { clientId: number; managerId: number | null; eventType: string; tokenFingerprint: string },
+) {
+  try {
+    await db.insert(publicReportAccessLogs).values(valores);
+  } catch (e) {
+    console.error("[PublicReport] Falha ao registrar acesso:", e instanceof Error ? e.message : e);
+  }
 }
 
 export const publicRouter = router({

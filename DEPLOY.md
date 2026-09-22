@@ -201,4 +201,5 @@ A aba **Deployments** → **View Logs** mostra o motivo. Os mais comuns:
 |---|---|
 | `DATABASE_URL is required` | o banco não foi criado, ou não está ligado ao serviço |
 | `ECONNREFUSED` | o banco ainda está subindo; espere e tente de novo |
+| `Link inválido` no relatório de um cliente que existe | o servidor completa sozinho as tabelas que o backup não trazia ao subir; se persistir, veja o log por `[Schema]` e abra o link com a tela mostrando o motivo real |
 | `Invalid OAuth access token` | o token do Meta expirou ou está sem escopo |

@@ -10,6 +10,7 @@
 import type { Express, Request, Response } from "express";
 import express from "express";
 import mysql from "mysql2/promise";
+import { garantirTabelas } from "./schemaGuard";
 import { splitSqlStatements } from "../scripts/sqlStatements";
 import {
   autorizar, bancoAceitaCarga, arquivoUtilizavel, importacaoHabilitada,
@@ -82,6 +83,9 @@ export function registerRestoreRoute(app: Express) {
         }
         await conn.query("SET FOREIGN_KEY_CHECKS = 1");
 
+        // O dump traz só as tabelas que existiam na origem; o código espera mais.
+        const completadas = await garantirTabelas(url);
+
         // Contagem final, para a tela mostrar o que de fato entrou.
         const [tabelas] = await conn.query<mysql.RowDataPacket[]>("SHOW TABLES");
         const resumo: Array<{ tabela: string; registros: number }> = [];
@@ -101,6 +105,7 @@ export function registerRestoreRoute(app: Express) {
           falhas: falhas.slice(0, 10),
           totalFalhas: falhas.length,
           resumo: resumo.filter((r) => r.registros > 0),
+          tabelasCriadas: completadas.criadas,
         });
       } catch (e) {
         console.error("[Importação] Erro:", e);

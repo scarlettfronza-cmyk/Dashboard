@@ -146,8 +146,14 @@ export default function PublicClientReport() {
       <div className="min-h-screen flex items-center justify-center p-4" style={{ background: DARK_THEME.bg }}>
         <div className="text-center">
           <p className="text-4xl mb-3">🔗</p>
-          <p className="text-lg font-semibold mb-2" style={{ color: DARK_THEME.textPrimary }}>Link inválido</p>
-          <p className="text-sm" style={{ color: DARK_THEME.textMuted }}>Este link não existe ou expirou.</p>
+          <p className="text-lg font-semibold mb-2" style={{ color: DARK_THEME.textPrimary }}>
+            {clientError?.data?.code === "FORBIDDEN" ? "Sem acesso a este relatório" : clientError && clientError.data?.code !== "NOT_FOUND" && clientError.data?.code !== "BAD_REQUEST" ? "Não foi possível abrir o relatório" : "Link inválido"}
+          </p>
+          <p className="text-sm max-w-sm mx-auto" style={{ color: DARK_THEME.textMuted }}>
+            {clientError && clientError.data?.code !== "NOT_FOUND" && clientError.data?.code !== "BAD_REQUEST"
+              ? clientError.message
+              : "Este link não existe ou expirou."}
+          </p>
         </div>
       </div>
     );
