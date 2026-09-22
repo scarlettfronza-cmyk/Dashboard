@@ -1,0 +1,6 @@
+# Railway (Nixpacks). O "..." mantém os pacotes padrão do Node; o chromium
+# é o navegador sem janela que gera o PDF do relatório (server/relatorioPdf.ts).
+# As fontes evitam texto em quadradinhos no PDF.
+[phases.setup]
+nixPkgs = ["...", "chromium"]
+aptPkgs = ["fonts-liberation", "fonts-noto-color-emoji", "fontconfig"]

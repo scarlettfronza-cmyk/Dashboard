@@ -49,7 +49,7 @@ export function InstagramProfile({ totals, username, accentColor, periodLabel, t
   ];
 
   return (
-    <section>
+    <section data-print="keep">
       <Eyebrow accentColor={accentColor}>Perfil no Instagram</Eyebrow>
       <Statement t={t}>
         {n(totals.novosSeguidores)} novos seguidores e {n(totals.profileVisits)} visitas ao perfil.

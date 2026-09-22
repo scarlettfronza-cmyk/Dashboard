@@ -1,8 +1,18 @@
 import { describe, it, expect } from "vitest";
 import {
   zapVarsFaltando, formatarPeriodo, linkRelatorio, corpoPadrao,
-  montarMensagemRelatorio, lerPeriodoDaUrl, ASSINATURA,
+  montarMensagemRelatorio, lerPeriodoDaUrl, ASSINATURA, nomeArquivoPdf,
 } from "@shared/whatsappRelatorio";
+
+describe("nomeArquivoPdf", () => {
+  it("tira acentos e símbolos, mantém o período", () => {
+    expect(nomeArquivoPdf("Dra. Verônica Vanolli ", "2026-08-01", "2026-08-31"))
+      .toBe("Relatorio-DRA-VERONICA-VANOLLI-2026-08-01-a-2026-08-31.pdf");
+  });
+  it("nome vazio não gera arquivo sem nome", () => {
+    expect(nomeArquivoPdf("***", "2026-08-01", "2026-08-31")).toBe("Relatorio-CLIENTE-2026-08-01-a-2026-08-31.pdf");
+  });
+});
 
 describe("zapVarsFaltando", () => {
   it("lista o que falta, na ordem", () => {

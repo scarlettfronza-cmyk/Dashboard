@@ -11,7 +11,9 @@ import { leadTrackingRouter } from "./routers/leadTracking";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { verifyManagerJwt, verifyManagerOwnsClient } from "./managerAuth";
-import { corpoPadrao, linkRelatorio, montarMensagemRelatorio } from "@shared/whatsappRelatorio";
+import { corpoPadrao, linkRelatorio, montarMensagemRelatorio, nomeArquivoPdf } from "@shared/whatsappRelatorio";
+import { gerarPdfRelatorio, pdfDisponivel } from "./relatorioPdf";
+import { urlInterna } from "./relatorioPdfRoute";
 import { getClientsByUserId, createClient, deleteClient, getIntegrationsByClientId,
   getIntegration, upsertIntegration, getSnapshotsByClientId,
   getSnapshotsInRange, upsertSnapshot, getDb, getClientById,
@@ -2053,7 +2055,7 @@ const mondayRouter = router({
  * rotas de admin e de gestor para as duas não divergirem (antes eram duas
  * cópias, e as duas mandavam o slug em vez do token público — link quebrado).
  */
-async function enviarRelatorioDoCliente(input: { clientId: number; from: string; to: string; reportText?: string; origin: string }) {
+async function enviarRelatorioDoCliente(input: { clientId: number; from: string; to: string; reportText?: string; origin: string; formato?: "link" | "pdf" }) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   const { clients: clientsTable } = await import("../drizzle/schema");
@@ -2067,11 +2069,24 @@ async function enviarRelatorioDoCliente(input: { clientId: number; from: string;
   if (!client.whatsappGroupId) throw new Error("Grupo de WhatsApp não configurado para este cliente");
   if (!client.publicToken) throw new Error("Este cliente não tem link público — gere um nas configurações do cliente");
   const link = linkRelatorio(input.origin, client.publicToken, input.from, input.to);
-  const message = montarMensagemRelatorio({ clienteNome: client.name, from: input.from, to: input.to, texto: input.reportText }, link);
-  const { sendGroupMessage } = await import("./zapApi");
+  const dados = { clienteNome: client.name, from: input.from, to: input.to, texto: input.reportText };
+  const { sendGroupMessage, sendGroupDocument } = await import("./zapApi");
+
+  if (input.formato === "pdf") {
+    if (!pdfDisponivel()) throw new Error("Geração de PDF indisponível neste servidor; envie como link.");
+    // O Chromium do servidor abre a própria aplicação pelo endereço interno.
+    const pdf = await gerarPdfRelatorio(`${urlInterna()}/r/${encodeURIComponent(client.publicToken)}?de=${input.from}&ate=${input.to}`);
+    // No documento, a legenda é o texto sem o link: o relatório vai anexo.
+    const legenda = dados.texto?.trim() || corpoPadrao(dados);
+    const r = await sendGroupDocument(client.whatsappGroupId, pdf, nomeArquivoPdf(client.name, input.from, input.to), legenda);
+    if (!r.success) throw new Error(r.error || "O Z-API não aceitou o documento");
+    return { success: true as const, message: legenda, formato: "pdf" as const };
+  }
+
+  const message = montarMensagemRelatorio(dados, link);
   const r = await sendGroupMessage(client.whatsappGroupId, message);
   if (!r.success) throw new Error(r.error || "O Z-API não aceitou a mensagem");
-  return { success: true as const, message };
+  return { success: true as const, message, formato: "link" as const };
 }
 
 const envioInput = z.object({
@@ -2080,6 +2095,7 @@ const envioInput = z.object({
   to: z.string(),
   reportText: z.string().max(4000).optional(),
   origin: z.string().url(),
+  formato: z.enum(["link", "pdf"]).default("link"),
 });
 
 const whatsappRouter = router({
@@ -2158,6 +2174,7 @@ const whatsappRouter = router({
         corpo: corpoPadrao({ clienteNome: client.name, from: input.from, to: input.to }),
         link: client.publicToken ? linkRelatorio(input.origin, client.publicToken, input.from, input.to) : null,
         grupoConfigurado: !!client.whatsappGroupId,
+        pdfDisponivel: pdfDisponivel(),
       };
     }),
 

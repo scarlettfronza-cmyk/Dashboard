@@ -61,6 +61,35 @@ export async function sendGroupMessage(groupId: string, message: string): Promis
 }
 
 /**
+ * Envia um PDF ao grupo. O Z-API aceita o documento em Base64 (data URI);
+ * `caption` é o texto que acompanha o arquivo na mesma mensagem.
+ */
+export async function sendGroupDocument(groupId: string, pdf: Buffer, fileName: string, caption: string): Promise<{ success: boolean; error?: string }> {
+  const c = credenciais();
+  if (c.faltando.length) {
+    return { success: false, error: `Z-API não configurado no servidor (faltam: ${c.faltando.join(", ")})` };
+  }
+  try {
+    const url = `${ZAPI_BASE}/instances/${c.instanceId}/token/${c.token}/send-document/pdf`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: getHeaders(c.clientToken!),
+      body: JSON.stringify({
+        phone: groupId,
+        document: `data:application/pdf;base64,${pdf.toString("base64")}`,
+        fileName,
+        caption,
+      }),
+    });
+    const data = await resp.json() as { zaapId?: string; messageId?: string; error?: string };
+    if (!resp.ok || data.error) return { success: false, error: data.error || `HTTP ${resp.status}` };
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
  * Get all WhatsApp groups the instance has access to (fetches all pages)
  */
 export async function listGroups(): Promise<{ id: string; name: string }[]> {
