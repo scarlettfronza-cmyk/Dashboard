@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { DiagnosticoMeta } from "@/components/report/DiagnosticoMeta";
 import { trpc } from "@/lib/trpc";
 import { getNextPrePaidStatus } from "@/lib/prePaid";
 import { useLocation, useParams } from "wouter";
@@ -713,6 +714,12 @@ export default function ManagerClientSettings() {
                 >Cancelar</button>
               </div>
             )}
+            {/* Diagnóstico: diz por que os dados não aparecem, em vez de
+                deixar o gestor conferir camada por camada no Meta. */}
+            {token && (
+              <DiagnosticoMeta managerToken={token} clientId={clientId} />
+            )}
+
             {/* Instructions */}
             <div className="p-3 rounded-lg text-xs" style={{ background: "oklch(0.14 0.012 255)", border: "1px solid oklch(0.24 0.012 255)" }}>
               <div className="font-semibold mb-2 text-white flex items-center gap-1.5">

@@ -398,6 +398,85 @@ export const managersRouter = router({
       return { success: true };
     }),
 
+  // ── Diagnóstico da configuração do Meta ───────────────────────────────────
+  // O dashboard mostrava zero sem dizer por quê, e a causa podia estar em
+  // qualquer camada: token, escopo, atribuição no usuário do sistema, conta
+  // fora da listagem ou período sem investimento. Aqui os fatos são coletados
+  // e a leitura fica em metaDiagnostico.ts, testada à parte.
+  diagnosticarMeta: publicProcedure
+    .input(z.object({
+      token: z.string(),
+      clientId: z.number(),
+      from: z.string().optional(),
+      to: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+
+      const { getSystemSetting } = await import("../_core/systemRouter");
+      const { resolverToken, CHAVE_TOKEN_AGENCIA } = await import("../metaTokenResolver");
+      const { montarDiagnostico, resumir, mesmoId } = await import("../metaDiagnostico");
+      const { listAdAccounts, fetchMetaAdsFromApi } = await import("../metaApi");
+
+      const [tokenAgencia, integracao] = await Promise.all([
+        getSystemSetting(CHAVE_TOKEN_AGENCIA),
+        getIntegration(input.clientId, "meta_token"),
+      ]);
+      const resolvido = resolverToken(tokenAgencia, integracao);
+
+      const fatos: Parameters<typeof montarDiagnostico>[0] = {
+        origemToken: resolvido.origem,
+        tokenValido: false,
+        contasVisiveis: 0,
+        contaConfigurada: resolvido.adAccountId,
+        contaEncontrada: false,
+      };
+
+      if (resolvido.token) {
+        const v = await validateMetaToken(resolvido.token);
+        fatos.tokenValido = v.valid;
+        fatos.nomeToken = v.name ?? null;
+        fatos.erroToken = v.error ?? null;
+
+        if (v.valid) {
+          try {
+            const contas = await listAdAccounts(resolvido.token);
+            fatos.contasVisiveis = contas.length;
+
+            if (resolvido.adAccountId) {
+              fatos.contaEncontrada = contas.some((c) => mesmoId(c.id, resolvido.adAccountId));
+              if (!fatos.contaEncontrada) {
+                // Sugere pelo nome: o caso comum é haver contas parecidas da
+                // mesma clínica, e a escolhida ser a antiga.
+                const alvo = (resolvido.adAccountId ?? "").replace(/^act_/, "").slice(0, 4);
+                fatos.parecidas = contas
+                  .filter((c) => c.name && (c.id.includes(alvo) || contas.length <= 10))
+                  .slice(0, 3)
+                  .map((c) => ({ id: c.id, name: c.name }));
+              }
+            }
+
+            if (fatos.contaEncontrada && input.from && input.to) {
+              try {
+                const dados = await fetchMetaAdsFromApi(
+                  resolvido.token, resolvido.adAccountId!, input.from, input.to,
+                );
+                fatos.investimentoPeriodo = dados.investimento ?? 0;
+                fatos.periodo = `${input.from} a ${input.to}`;
+              } catch (e) {
+                fatos.erroInsights = e instanceof Error ? e.message : String(e);
+              }
+            }
+          } catch (e) {
+            fatos.erroInsights = e instanceof Error ? e.message : String(e);
+          }
+        }
+      }
+
+      const achados = montarDiagnostico(fatos);
+      return { achados, resumo: resumir(achados) };
+    }),
+
   saveClientMetaToken: publicProcedure
     .input(z.object({ token: z.string(), clientId: z.number(), accessToken: z.string(), adAccountId: z.string() }))
     .mutation(async ({ input }) => {
