@@ -450,16 +450,16 @@ export async function fetchInstagramInsightsFromApi(
 export async function listInstagramProfiles(
   accessToken: string
 ): Promise<Array<{ igUserId: string; username: string; name: string; followersCount: number; profilePictureUrl?: string }>> {
-  const pagesResp = await axios.get(`${GRAPH_API_BASE}/me/accounts`, {
-    params: {
+  // Mesma correção das contas de anúncio: sem percorrer as páginas, perfis
+  // ficavam de fora sem que nada indicasse o corte.
+  const pages = await paginarGraph<{ id?: string; name?: string; instagram_business_account?: { id: string; username: string; name: string; followers_count: number; profile_picture_url?: string } }>(
+    `${GRAPH_API_BASE}/me/accounts`,
+    {
       access_token: accessToken,
       fields: "id,name,instagram_business_account{id,username,name,followers_count,profile_picture_url}",
       limit: 100,
     },
-    timeout: 20000,
-  });
-
-  const pages = pagesResp.data?.data ?? [];
+  );
   const profiles: Array<{ igUserId: string; username: string; name: string; followersCount: number; profilePictureUrl?: string }> = [];
 
   for (const page of pages) {
@@ -497,16 +497,43 @@ export async function validateMetaToken(accessToken: string): Promise<{ valid: b
 /**
  * List ad accounts accessible by the token.
  */
+/** Teto de páginas: evita laço infinito se a API devolver `next` sem fim. */
+const MAX_PAGINAS = 20;
+
+/**
+ * Percorre uma listagem da Graph API até o fim.
+ *
+ * As listagens paravam na primeira página. Quem administra muitas contas — o
+ * caso de uma agência — não via as demais, e a ausência parecia falta de
+ * permissão em vez de corte de lista, o que leva a procurar o problema no
+ * lugar errado.
+ */
+export async function paginarGraph<T>(
+  urlInicial: string,
+  params: Record<string, string | number>,
+  maxPaginas = MAX_PAGINAS,
+): Promise<T[]> {
+  const itens: T[] = [];
+  let url: string | null = urlInicial;
+  let query: Record<string, string | number> | undefined = params;
+
+  for (let pagina = 0; url && pagina < maxPaginas; pagina++) {
+    const resp: { data?: { data?: T[]; paging?: { next?: string } } } =
+      await axios.get(url, { params: query, timeout: 20000 });
+    for (const item of resp.data?.data ?? []) itens.push(item);
+    // O `next` já traz token e cursor embutidos; repetir params duplicaria.
+    url = resp.data?.paging?.next ?? null;
+    query = undefined;
+  }
+  return itens;
+}
+
 export async function listAdAccounts(accessToken: string): Promise<Array<{ id: string; name: string; currency: string }>> {
-  const resp = await axios.get(`${GRAPH_API_BASE}/me/adaccounts`, {
-    params: { access_token: accessToken, fields: "id,name,currency,account_status", limit: 50 },
-    timeout: 15000,
-  });
-  return (resp.data?.data ?? []).map((a: { id: string; name: string; currency: string }) => ({
-    id: a.id,
-    name: a.name,
-    currency: a.currency,
-  }));
+  const contas = await paginarGraph<{ id: string; name: string; currency: string }>(
+    `${GRAPH_API_BASE}/me/adaccounts`,
+    { access_token: accessToken, fields: "id,name,currency,account_status", limit: 200 },
+  );
+  return contas.map((a) => ({ id: a.id, name: a.name, currency: a.currency }));
 }
 
 /**
