@@ -747,6 +747,36 @@ export const managersRouter = router({
       await dbConn.update(clients).set({ reportTheme: input.reportTheme }).where(eq(clients.id, input.clientId));
       return { success: true };
     }),
+  // ── Alertas de saldo no Telegram: estado, teste e conferência manual ──────
+  statusTelegram: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const { telegramFaltando } = await import("../budgetCron");
+      const faltando = telegramFaltando();
+      const db = await getDb();
+      const prePagos = db ? (await db.select({ id: clients.id }).from(clients).where(eq(clients.isPrePaid, 1))).length : 0;
+      return { configurado: faltando.length === 0, faltando, prePagos, limiteBaixo: 200, limiteCritico: 50 };
+    }),
+
+  testarTelegram: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const { sendTelegram } = await import("../budgetCron");
+      const r = await sendTelegram("✅ *Teste do dashboard*\nOs alertas de saldo baixo vão chegar aqui.");
+      if (!r.ok) throw new TRPCError({ code: "BAD_REQUEST", message: r.erro ?? "Falha ao enviar." });
+      return { ok: true };
+    }),
+
+  conferirSaldos: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const { runBudgetCheck } = await import("../budgetCron");
+      return runBudgetCheck();
+    }),
+
   // ── Carteira inteira num período: CPL de cada cliente e de cada campanha ──
   // Consulta os clientes em paralelo (poucos por vez: cada um bate na API do
   // Meta). Falha em um cliente vira uma linha "erro", não derruba a tela.

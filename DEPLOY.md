@@ -195,7 +195,34 @@ Ao clicar em **💬 WhatsApp** no painel, abre uma prévia da mensagem — o
 texto pode ser ajustado antes de enviar. O link já abre o relatório no
 período que estava selecionado no painel.
 
-## 7. Conferir
+## 6d. Alertas de saldo baixo no Telegram
+
+Para contas que pagam por PIX/boleto (pré-pagas), o sistema confere o saldo
+a cada 2 horas e avisa no Telegram abaixo de R$ 200 (crítico abaixo de
+R$ 50). Precisa de um bot seu e do id da conversa.
+
+1. No Telegram, abra o **@BotFather** → `/newbot` → dê um nome (ex.
+   "Alertas Escarlate") e um usuário terminado em `bot`. Ele responde com
+   o **token** (algo como `123456789:AAH...`). Guarde.
+2. Abra uma conversa com o seu bot novo e mande qualquer mensagem
+   ("oi"). Sem isso o bot não consegue falar com você.
+3. No navegador, abra `https://api.telegram.org/bot<TOKEN>/getUpdates`
+   (troque `<TOKEN>` pelo token). Procure `"chat":{"id":` — o número
+   depois é o **chat id**. Se quiser os alertas num grupo, adicione o bot
+   ao grupo, mande uma mensagem lá e repita: o id do grupo vem negativo.
+4. No Railway, serviço do dashboard → **Variables**:
+
+   | Nome | Valor |
+   |---|---|
+   | `TELEGRAM_BOT_TOKEN` | o token do passo 1 |
+   | `TELEGRAM_CHAT_ID` | o id do passo 3 |
+
+5. Na tela de cada cliente pré-pago, ligue **Conta Pré-paga (PIX/boleto)**.
+   Só essas contas são conferidas.
+6. Em **Configurações**, card *Alertas de saldo baixo*: **Enviar mensagem
+   de teste** confirma o bot; **Conferir saldos agora** roda a checagem na
+   hora e mostra o saldo de cada conta.
+
 
 - `SEU-ENDERECO/manager/login` abre a tela de entrada
 - `SEU-ENDERECO/r/TOKEN` abre o relatório de um cliente

@@ -9,6 +9,18 @@ import axios from "axios";
 import { getDb } from "./db";
 import { fetchAdAccountBudget } from "./metaApi";
 import { ENV } from "./_core/env";
+import { getSystemSetting } from "./_core/systemRouter";
+import { resolverToken, CHAVE_TOKEN_AGENCIA } from "./metaTokenResolver";
+
+export const VARIAVEIS_TELEGRAM = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] as const;
+
+/** Quais variáveis do Telegram faltam no ambiente. Vazio = configurado. */
+export function telegramFaltando(): string[] {
+  const f: string[] = [];
+  if (!ENV.telegramBotToken) f.push("TELEGRAM_BOT_TOKEN");
+  if (!ENV.telegramChatId) f.push("TELEGRAM_CHAT_ID");
+  return f;
+}
 
 // In-memory cooldown tracker: clientId -> timestamp of last alert sent
 const alertCooldowns = new Map<number, number>();
@@ -18,23 +30,27 @@ const CRITICAL_BALANCE_THRESHOLD = 50; // R$50 critical threshold
 
 /**
  * Send a Telegram message to the configured chat.
+ * Devolve o erro em texto para a tela de teste mostrar o motivo real
+ * (token errado, chat id errado, bot nunca iniciado...).
  */
-async function sendTelegram(text: string): Promise<boolean> {
-  if (!ENV.telegramBotToken || !ENV.telegramChatId) {
+export async function sendTelegram(text: string): Promise<{ ok: boolean; erro?: string }> {
+  const faltando = telegramFaltando();
+  if (faltando.length) {
     console.warn("[Telegram] Bot token or chat ID not configured — skipping");
-    return false;
+    return { ok: false, erro: `Telegram não configurado (faltam: ${faltando.join(", ")})` };
   }
   try {
     await axios.post(`https://api.telegram.org/bot${ENV.telegramBotToken}/sendMessage`, {
       chat_id: ENV.telegramChatId,
       text,
       parse_mode: "Markdown",
-    });
-    return true;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    }, { timeout: 15000 });
+    return { ok: true };
+  } catch (err: any) {
+    const desc = err?.response?.data?.description;
+    const msg = desc ? String(desc) : err instanceof Error ? err.message : String(err);
     console.error("[Telegram] Failed to send message:", msg);
-    return false;
+    return { ok: false, erro: msg };
   }
 }
 
@@ -66,15 +82,20 @@ export async function runBudgetCheck(threshold = LOW_BALANCE_THRESHOLD): Promise
   let skipped = 0;
 
   const now = Date.now();
+  // O token é o da agência quando existir; a conta continua por cliente.
+  const tokenAgencia = await getSystemSetting(CHAVE_TOKEN_AGENCIA);
 
   for (const client of prePaidClients) {
     const integration = await getIntegration(client.id, "meta_token");
-    if (!integration?.accessToken || !integration?.adAccountId) {
-      results.push({ name: client.name, balance: null, status: "sem token Meta" });
+    const { token, adAccountId } = resolverToken(tokenAgencia, integration);
+    if (!token || !adAccountId) {
+      results.push({ name: client.name, balance: null, status: !adAccountId ? "sem conta de anúncio" : "sem token Meta" });
       continue;
     }
 
-    const budget = await fetchAdAccountBudget(integration.accessToken, integration.adAccountId);
+    // Só a conta principal: a de saldo é a que paga por PIX/boleto.
+    const contaPrincipal = adAccountId.split(",")[0].trim();
+    const budget = await fetchAdAccountBudget(token, contaPrincipal);
     if (!budget) {
       results.push({ name: client.name, balance: null, status: "erro ao buscar saldo" });
       continue;
@@ -127,7 +148,7 @@ export async function runBudgetCheck(threshold = LOW_BALANCE_THRESHOLD): Promise
 
     text += `_Recarregue antes que as campanhas pausem!_`;
 
-    const sent = await sendTelegram(text);
+    const { ok: sent } = await sendTelegram(text);
     if (sent) {
       console.log(`[Budget Check] Sent Telegram alert for ${lowBalanceAlerts.length} client(s) (${criticalOnes.length} critical, ${lowOnes.length} low)`);
     }

@@ -1,11 +1,25 @@
 /**
- * Scheduled task endpoints — protected by session cookie (user role).
- * The scheduled task agent sends requests here to trigger budget checks.
+ * Disparos manuais das tarefas agendadas (as automáticas rodam por cron
+ * dentro do próprio servidor). Exigem o JWT de gestora no cabeçalho
+ * `Authorization: Bearer <token>` — o comentário antigo dizia "protegido
+ * por cookie", mas não havia verificação nenhuma.
  */
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { runBudgetCheck } from "./budgetCron";
+import { verifyManagerJwt } from "./managerAuth";
+
+async function exigirGestora(req: Request, res: Response, next: NextFunction) {
+  const token = (req.headers.authorization ?? "").replace(/^Bearer\s+/i, "");
+  try {
+    await verifyManagerJwt(token);
+    next();
+  } catch {
+    res.status(401).json({ error: "Token de gestor ausente ou inválido." });
+  }
+}
 
 export function registerScheduledRoutes(app: Express) {
+  app.use("/api/scheduled", exigirGestora);
   /**
    * POST /api/scheduled/sync-monday
    * Triggers the Monday.com auto-sync for all clients (or a specific clientId).
