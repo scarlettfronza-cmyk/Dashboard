@@ -15,6 +15,7 @@ import ManagerLogin from "./pages/ManagerLogin";
 import ManagerDashboard from "./pages/ManagerDashboard";
 import ManagerClientSettings from "./pages/ManagerClientSettings";
 import ManagerSettings from "./pages/ManagerSettings";
+import ManagerCarteira from "./pages/ManagerCarteira";
 import { RECURSOS_IA_ATIVOS } from "./lib/recursosOcultos";
 import ManagerIntelligence from "./pages/ManagerIntelligence";
 import ManagerCreativeAnalyst from "./pages/ManagerCreativeAnalyst";
@@ -50,6 +51,7 @@ function Router() {
       <Route path="/manager/login" component={ManagerLogin} />
       <Route path="/manager/dashboard" component={ManagerDashboard} />
       <Route path="/manager/settings" component={ManagerSettings} />
+      <Route path="/manager/carteira" component={ManagerCarteira} />
       {RECURSOS_IA_ATIVOS && (
         <>
           <Route path="/manager/intelligence" component={ManagerIntelligence} />

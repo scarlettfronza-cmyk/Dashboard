@@ -747,6 +747,45 @@ export const managersRouter = router({
       await dbConn.update(clients).set({ reportTheme: input.reportTheme }).where(eq(clients.id, input.clientId));
       return { success: true };
     }),
+  // ── Carteira inteira num período: CPL de cada cliente e de cada campanha ──
+  // Consulta os clientes em paralelo (poucos por vez: cada um bate na API do
+  // Meta). Falha em um cliente vira uma linha "erro", não derruba a tela.
+  visaoCarteira: publicProcedure
+    .input(z.object({ token: z.string(), from: z.string(), to: z.string() }))
+    .query(async ({ input }) => {
+      const { managerId } = await verifyManagerJwt(input.token);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const vinculos = await db.select({ clientId: managerClients.clientId }).from(managerClients)
+        .where(eq(managerClients.managerId, managerId));
+      const ids = vinculos.map((v) => v.clientId);
+      if (!ids.length) return { clientes: [] as import("@shared/carteira").ClienteCarteira[] };
+      const lista = await db.select({ id: clients.id, name: clients.name }).from(clients).where(inArray(clients.id, ids));
+      const { fetchClientKpis } = await import("../routers");
+
+      const resultados: import("@shared/carteira").ClienteCarteira[] = [];
+      const fila = [...lista];
+      const trabalhador = async () => {
+        for (let c = fila.shift(); c; c = fila.shift()) {
+          try {
+            const dados = await getClientById(c.id);
+            const k = await fetchClientKpis(c.id, input.from, input.to, dados?.salesChannelFilter ?? null);
+            resultados.push({
+              id: c.id, nome: c.name, temMeta: Boolean(k.mediaDataAvailable),
+              investimento: k.investimento ?? 0, leads: k.leads ?? 0,
+              campanhas: (k.campanhasDetalhe ?? []).map((d) => ({
+                nome: d.nome, tipo: d.tipo, investimento: d.investimento, leads: d.conversas + d.leadsFormulario,
+              })),
+            });
+          } catch (e) {
+            resultados.push({ id: c.id, nome: c.name, erro: e instanceof Error ? e.message : String(e), temMeta: false, investimento: 0, leads: 0, campanhas: [] });
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, lista.length) }, trabalhador));
+      return { clientes: resultados };
+    }),
+
   // ── Get KPIs for a client (manager JWT auth) ─────────────────────────────────
   getKpisAsManager: publicProcedure
     .input(z.object({ token: z.string(), clientId: z.number(), from: z.string(), to: z.string() }))

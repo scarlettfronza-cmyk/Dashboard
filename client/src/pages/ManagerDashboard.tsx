@@ -608,6 +608,11 @@ export default function ManagerDashboard() {
               <PlusCircle className="w-3.5 h-3.5" />
               Novo Cliente
             </button>
+            <button onClick={() => navigate("/manager/carteira")}
+              className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-foreground hover:border-primary/30 hover:bg-muted/50">
+              <TrendingUp className="w-3.5 h-3.5" />
+              Carteira · CPL
+            </button>
             <button onClick={() => navigate("/manager/settings")}
               className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-foreground hover:border-primary/30 hover:bg-muted/50">
               <Settings className="w-3.5 h-3.5" />
