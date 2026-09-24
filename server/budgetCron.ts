@@ -11,6 +11,12 @@ import { fetchAdAccountBudget } from "./metaApi";
 import { ENV } from "./_core/env";
 import { getSystemSetting } from "./_core/systemRouter";
 import { resolverToken, CHAVE_TOKEN_AGENCIA } from "./metaTokenResolver";
+import { descreverStatus, montarAlertaContas, type StatusConta } from "./statusContaMeta";
+
+// Problema de conta (cartão recusado, desativada) repete uma vez por dia
+// enquanto durar — diferente do saldo, que só avisa a cada 4 horas.
+const statusCooldowns = new Map<number, number>();
+const STATUS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export const VARIAVEIS_TELEGRAM = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] as const;
 
@@ -164,12 +170,61 @@ export async function runBudgetCheck(threshold = LOW_BALANCE_THRESHOLD): Promise
   };
 }
 
+/**
+ * Status da conta de anúncio de TODOS os clientes (não só pré-pagos):
+ * cartão recusado, conta desativada, carência. Avisa no Telegram e repete
+ * uma vez por dia enquanto o problema durar.
+ */
+export async function runAccountStatusCheck(): Promise<{
+  checked: number;
+  alerts: number;
+  results: Array<{ name: string; status: StatusConta | null; erro?: string }>;
+}> {
+  const db = await getDb();
+  if (!db) return { checked: 0, alerts: 0, results: [] };
+
+  const { clients: clientsSchema } = await import("../drizzle/schema");
+  const { getIntegration } = await import("./db");
+  const todos = await db.select({ id: clientsSchema.id, name: clientsSchema.name }).from(clientsSchema);
+  const tokenAgencia = await getSystemSetting(CHAVE_TOKEN_AGENCIA);
+
+  const results: Array<{ name: string; status: StatusConta | null; erro?: string }> = [];
+  const problemas: Array<{ id: number; nome: string; status: StatusConta }> = [];
+
+  for (const client of todos) {
+    const integration = await getIntegration(client.id, "meta_token");
+    const { token, adAccountId } = resolverToken(tokenAgencia, integration);
+    if (!token || !adAccountId) continue; // sem conta configurada: não há o que conferir
+    const conta = await fetchAdAccountBudget(token, adAccountId.split(",")[0].trim());
+    if (!conta) { results.push({ name: client.name, status: null, erro: "erro ao consultar a conta" }); continue; }
+    const status = descreverStatus(conta.accountStatus, conta.disableReason);
+    results.push({ name: client.name, status });
+    if (status.gravidade !== "ok") problemas.push({ id: client.id, nome: client.name, status });
+  }
+
+  const agora = Date.now();
+  const novos = problemas.filter((p) => {
+    const ultimo = statusCooldowns.get(p.id);
+    return !ultimo || agora - ultimo >= STATUS_COOLDOWN_MS;
+  });
+  const texto = montarAlertaContas(novos);
+  if (texto) {
+    const { ok } = await sendTelegram(texto);
+    if (ok) for (const p of novos) statusCooldowns.set(p.id, agora);
+    console.log(`[Account Status] ${novos.length} conta(s) com problema; alerta ${ok ? "enviado" : "falhou"}`);
+  }
+  return { checked: results.length, alerts: novos.length, results };
+}
+
 export function startBudgetCron(): void {
   // Run every 2 hours (at :00 of even hours: 00:00, 02:00, 04:00, ...)
   cron.schedule("0 0 */2 * * *", async () => {
     console.log("[Budget Check] Cron triggered at", new Date().toISOString());
     await runBudgetCheck(LOW_BALANCE_THRESHOLD).catch(err => {
       console.error("[Budget Check] Unhandled error:", err);
+    });
+    await runAccountStatusCheck().catch(err => {
+      console.error("[Account Status] Unhandled error:", err);
     });
   });
   console.log("[Budget Check] Cron job scheduled — runs every 2 hours");

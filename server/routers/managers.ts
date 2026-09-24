@@ -773,8 +773,9 @@ export const managersRouter = router({
     .input(z.object({ token: z.string() }))
     .mutation(async ({ input }) => {
       await verifyManagerJwt(input.token);
-      const { runBudgetCheck } = await import("../budgetCron");
-      return runBudgetCheck();
+      const { runBudgetCheck, runAccountStatusCheck } = await import("../budgetCron");
+      const [saldos, contas] = await Promise.all([runBudgetCheck(), runAccountStatusCheck()]);
+      return { ...saldos, contas: contas.results, alertasConta: contas.alerts };
     }),
 
   // ── Carteira inteira num período: CPL de cada cliente e de cada campanha ──

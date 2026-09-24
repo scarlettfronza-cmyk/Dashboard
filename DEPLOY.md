@@ -197,9 +197,11 @@ período que estava selecionado no painel.
 
 ## 6d. Alertas de saldo baixo no Telegram
 
-Para contas que pagam por PIX/boleto (pré-pagas), o sistema confere o saldo
-a cada 2 horas e avisa no Telegram abaixo de R$ 200 (crítico abaixo de
-R$ 50). Precisa de um bot seu e do id da conversa.
+A cada 2 horas o sistema confere todas as contas de anúncio e avisa no
+Telegram quando alguma está com **cartão recusado / pagamento pendente**,
+desativada ou em carência (repete uma vez por dia enquanto durar). Para
+contas que pagam por PIX/boleto (pré-pagas), avisa também saldo abaixo de
+R$ 200 (crítico abaixo de R$ 50). Precisa de um bot seu e do id da conversa.
 
 1. No Telegram, abra o **@BotFather** → `/newbot` → dê um nome (ex.
    "Alertas Escarlate") e um usuário terminado em `bot`. Ele responde com

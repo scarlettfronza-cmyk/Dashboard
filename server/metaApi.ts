@@ -722,13 +722,13 @@ export async function fetchInstagramInsightsByIgId(
 export async function fetchAdAccountBudget(
   accessToken: string,
   adAccountId: string
-): Promise<{ balance: number; amountSpent: number; spendCap: number; currency: string; accountStatus: number } | null> {
+): Promise<{ balance: number; amountSpent: number; spendCap: number; currency: string; accountStatus: number; disableReason: number | null } | null> {
   const normalizedAccountId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
   try {
     const resp = await axios.get(`${GRAPH_API_BASE}/${normalizedAccountId}`, {
       params: {
         access_token: accessToken,
-        fields: "balance,amount_spent,spend_cap,currency,account_status,funding_source_details",
+        fields: "balance,amount_spent,spend_cap,currency,account_status,disable_reason,funding_source_details",
       },
       timeout: 15000,
     });
@@ -770,6 +770,7 @@ export async function fetchAdAccountBudget(
       spendCap: parseFloat(data.spend_cap ?? "0") / 100,
       currency: data.currency ?? "BRL",
       accountStatus: data.account_status ?? 1,
+      disableReason: data.disable_reason ?? null,
     };
   } catch (err: unknown) {
     const e = err as { response?: { data?: unknown } };

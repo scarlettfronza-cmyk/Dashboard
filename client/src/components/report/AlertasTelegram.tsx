@@ -21,13 +21,18 @@ const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", curren
 export function AlertasTelegram({ managerToken }: { managerToken: string }) {
   const status = trpc.managers.statusTelegram.useQuery({ token: managerToken }, { enabled: !!managerToken });
   const [resultado, setResultado] = useState<Array<{ name: string; balance: number | null; status: string }> | null>(null);
+  const [contas, setContas] = useState<Array<{ name: string; status: { rotulo: string; detalhe: string; gravidade: "ok" | "aviso" | "critico" } | null; erro?: string }> | null>(null);
 
   const testar = trpc.managers.testarTelegram.useMutation({
     onSuccess: () => toast.success("Mensagem de teste enviada — confere no Telegram."),
     onError: (e) => toast.error(e.message),
   });
   const conferir = trpc.managers.conferirSaldos.useMutation({
-    onSuccess: (r) => { setResultado(r.results); toast.success(r.alerts > 0 ? `${r.alerts} alerta(s) enviado(s) no Telegram.` : "Saldos conferidos: nenhum abaixo do limite."); },
+    onSuccess: (r) => {
+      setResultado(r.results); setContas(r.contas);
+      const n = r.alerts + r.alertasConta;
+      toast.success(n > 0 ? `${n} alerta(s) enviado(s) no Telegram.` : "Tudo certo: nenhum saldo baixo nem problema de conta.");
+    },
     onError: (e) => toast.error(e.message),
   });
 
@@ -39,7 +44,7 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="text-base">🔔</span>
-          <h2 className="text-sm font-semibold" style={{ color: C.texto }}>Alertas de saldo baixo (Telegram)</h2>
+          <h2 className="text-sm font-semibold" style={{ color: C.texto }}>Alertas de conta (Telegram)</h2>
         </div>
         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ color: cor, background: `color-mix(in oklch, ${cor} 15%, transparent)`, border: `1px solid color-mix(in oklch, ${cor} 40%, transparent)` }}>
           {!d ? "…" : d.configurado ? "configurado" : "pendente"}
@@ -54,9 +59,10 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
       )}
       {d && d.configurado && (
         <p className="text-xs mt-2 leading-relaxed" style={{ color: C.suave }}>
-          A cada 2 horas o sistema confere o saldo das contas <b style={{ color: C.texto }}>marcadas como pré-pagas</b> na tela de cada cliente
-          ({d.prePagos} {d.prePagos === 1 ? "cliente marcado" : "clientes marcados"}) e avisa abaixo de {brl(d.limiteBaixo)}; abaixo de {brl(d.limiteCritico)} é crítico.
-          {d.prePagos === 0 && <span style={{ color: C.aviso }}> Nenhum cliente marcado — sem isso, nada é conferido.</span>}
+          A cada 2 horas o sistema confere <b style={{ color: C.texto }}>todas</b> as contas de anúncio e avisa se alguma está com
+          <b style={{ color: C.texto }}> cartão recusado / pagamento pendente</b>, desativada ou em carência (repete 1× por dia enquanto durar).
+          Nas contas <b style={{ color: C.texto }}>marcadas como pré-pagas</b> ({d.prePagos} {d.prePagos === 1 ? "cliente" : "clientes"}) também avisa
+          saldo abaixo de {brl(d.limiteBaixo)}; abaixo de {brl(d.limiteCritico)} é crítico.
         </p>
       )}
 
@@ -69,12 +75,37 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
         <button onClick={() => conferir.mutate({ token: managerToken })} disabled={!d?.configurado || conferir.isPending}
           className="text-xs font-semibold px-3 py-1.5 rounded-md disabled:opacity-40"
           style={{ background: `color-mix(in oklch, ${C.marca} 15%, transparent)`, color: "#ff8a94", border: `1px solid color-mix(in oklch, ${C.marca} 40%, transparent)` }}>
-          {conferir.isPending ? "Conferindo..." : "Conferir saldos agora"}
+          {conferir.isPending ? "Conferindo..." : "Conferir contas agora"}
         </button>
       </div>
 
+      {contas && (
+        <div className="mt-3 rounded-lg overflow-hidden" style={{ border: `1px solid ${C.borda}` }}>
+          <p className="text-[10px] uppercase font-semibold px-3 py-1.5 m-0" style={{ color: C.fraco, letterSpacing: ".14em", background: "oklch(0.14 0.012 255)" }}>Status das contas</p>
+          {contas.length === 0 ? (
+            <p className="text-xs px-3 py-2 m-0" style={{ color: C.fraco }}>Nenhum cliente com conta de anúncio configurada.</p>
+          ) : (
+            <table className="w-full text-xs">
+              <tbody>
+                {contas.map((r) => {
+                  const g = r.status?.gravidade;
+                  const c = !r.status ? C.fraco : g === "critico" ? C.marca : g === "aviso" ? C.aviso : C.ok;
+                  return (
+                    <tr key={r.name} className="border-t" style={{ borderColor: C.borda }}>
+                      <td className="px-3 py-1.5" style={{ color: C.texto }}>{r.name}</td>
+                      <td className="px-3 py-1.5 text-right font-semibold whitespace-nowrap" style={{ color: c }}>{r.status?.rotulo ?? r.erro ?? "—"}</td>
+                      <td className="px-3 py-1.5" style={{ color: C.fraco }}>{r.status?.detalhe}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
       {resultado && (
         <div className="mt-3 rounded-lg overflow-hidden" style={{ border: `1px solid ${C.borda}` }}>
+          <p className="text-[10px] uppercase font-semibold px-3 py-1.5 m-0" style={{ color: C.fraco, letterSpacing: ".14em", background: "oklch(0.14 0.012 255)" }}>Saldo das contas pré-pagas</p>
           {resultado.length === 0 ? (
             <p className="text-xs px-3 py-2 m-0" style={{ color: C.fraco }}>Nenhum cliente marcado como pré-pago.</p>
           ) : (
