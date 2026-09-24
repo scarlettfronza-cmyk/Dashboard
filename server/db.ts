@@ -104,7 +104,7 @@ export async function getIntegrationsByClientId(clientId: number) {
   return rows.map((row) => ({ ...row, accessToken: decryptSecret(row.accessToken) }));
 }
 
-export async function getIntegration(clientId: number, provider: "meta_ads" | "monday" | "instagram_oauth" | "meta_token") {
+export async function getIntegration(clientId: number, provider: "meta_ads" | "monday" | "google_sheets" | "sales_sheet" | "followers_sheet" | "instagram_oauth" | "meta_token") {
   const db = await getDb();
   if (!db) return null;
   const result = await db.select().from(integrations).where(and(eq(integrations.clientId, clientId), eq(integrations.provider, provider))).limit(1);
