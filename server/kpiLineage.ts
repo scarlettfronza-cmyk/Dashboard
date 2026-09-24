@@ -1,4 +1,4 @@
-export type RevenueSourceType = "sales_records" | "sales_sheet" | "unavailable";
+export type RevenueSourceType = "sales_records" | "unavailable";
 
 export function calculateCommercialMetrics(input: {
   investimento: number;
@@ -28,17 +28,9 @@ export function describeRevenueSource(source: RevenueSourceType, uploadedAt?: Da
   if (source === "sales_records") {
     return {
       type: source,
-      label: "Base comercial importada (Monday ou XLSX)",
+      label: "Base comercial do CRM (Monday)",
       updatedAt: uploadedAt?.toISOString() ?? null,
       roasFormula: "(Receita de consultas + receita de fechamentos) ÷ investimento",
-    };
-  }
-  if (source === "sales_sheet") {
-    return {
-      type: source,
-      label: "Planilha comercial conectada",
-      updatedAt: null,
-      roasFormula: "Receita registrada na planilha ÷ investimento",
     };
   }
   return {

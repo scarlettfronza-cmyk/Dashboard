@@ -154,8 +154,6 @@ export default function ManagerClientSettings() {
   });
 
   // Sales XLSX state
-  const [uploadingXlsx, setUploadingXlsx] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Monday API sync state
   const [mondayBoardId, setMondayBoardId] = useState("");
@@ -410,31 +408,6 @@ export default function ManagerClientSettings() {
     });
   };
 
-  const handleXlsxUpload = async (file: File) => {
-    if (!token) return;
-    setUploadingXlsx(true);
-    try {
-      const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-      const base64 = btoa(binary);
-      const res = await fetch(`/api/upload-sales/${clientId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({ fileBase64: base64, fileName: file.name }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao fazer upload");
-      toast.success(`${data.imported} registros importados com sucesso!`);
-      uploadInfo.refetch();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erro ao fazer upload");
-    } finally {
-      setUploadingXlsx(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
 
   if (!token || !clientId) return null;
 
@@ -813,13 +786,16 @@ export default function ManagerClientSettings() {
             )}
           </SectionCard>
 
-          {/* ─── Dados de Vendas (Monday.com) ─────────────────────────────── */}
-          <SectionCard title="Dados de Vendas (Monday.com)" icon="📋" accentColor="oklch(0.72 0.18 145)">
+          {/* ─── Sincronização Direta Monday.com ─────────────────────────── */}
+          <SectionCard title="Sincronização Direta Monday.com" icon="🔄" accentColor="oklch(0.72 0.18 145)">
+            <p className="text-xs" style={{ color: "oklch(0.50 0.010 240)" }}>
+              Os dados de vendas vêm direto do board do cliente no Monday.com. Informe o ID do board (número na URL do Monday).
+            </p>
             {uploadInfo.data ? (
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" style={{ color: "oklch(0.72 0.18 145)" }} />
                 <span className="text-sm" style={{ color: "oklch(0.72 0.18 145)" }}>
-                  {uploadInfo.data.totalRecords} registros importados
+                  {uploadInfo.data.totalRecords} registros na base comercial
                   {uploadInfo.data.uploadedAt && (
                     <span className="ml-2 text-xs" style={{ color: "oklch(0.45 0.010 240)" }}>
                       — atualizado em {new Date(uploadInfo.data.uploadedAt).toLocaleDateString("pt-BR")}
@@ -828,27 +804,8 @@ export default function ManagerClientSettings() {
                 </span>
               </div>
             ) : (
-              <p className="text-sm" style={{ color: "oklch(0.50 0.010 240)" }}>Nenhuma planilha importada ainda.</p>
+              <p className="text-sm" style={{ color: "oklch(0.50 0.010 240)" }}>Nenhum registro sincronizado ainda.</p>
             )}
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium" style={{ color: "oklch(0.65 0.010 240)" }}>Importar planilha do Monday.com (.xlsx)</label>
-              <p className="text-xs" style={{ color: "oklch(0.45 0.010 240)" }}>
-                Exporte o board do cliente no Monday.com e faça upload aqui. O sistema lê as colunas
-                <strong className="text-white"> Data da Consulta</strong>, <strong className="text-white">Fechou</strong> e <strong className="text-white">Valor Cirurgia</strong>.
-              </p>
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) handleXlsxUpload(file); }} />
-              <ActionBtn onClick={() => fileInputRef.current?.click()} disabled={uploadingXlsx} variant="secondary">
-                {uploadingXlsx ? "Importando..." : "📂 Selecionar arquivo .xlsx"}
-              </ActionBtn>
-            </div>
-          </SectionCard>
-
-          {/* ─── Sincronização Direta Monday.com ─────────────────────────── */}
-          <SectionCard title="Sincronização Direta Monday.com" icon="🔄" accentColor="oklch(0.72 0.18 145)">
-            <p className="text-xs" style={{ color: "oklch(0.50 0.010 240)" }}>
-              Sincronize os dados de vendas diretamente do board do Monday.com, sem precisar exportar planilha. Informe o ID do board (número na URL do Monday).
-            </p>
 
             {mondayStatus.data?.boardId && (
               <div className="flex items-center gap-2">
@@ -885,7 +842,7 @@ export default function ManagerClientSettings() {
 
             {mondayStatus.data && !mondayStatus.data.hasToken && (
               <div className="rounded-lg p-3 text-xs" style={{ background: "oklch(0.75 0.18 60 / 0.08)", border: "1px solid oklch(0.75 0.18 60 / 0.25)", color: "oklch(0.75 0.18 60)" }}>
-                <strong>Integração Monday.com não configurada.</strong> Use o upload de planilha XLSX para importar dados de vendas.
+                <strong>Integração Monday.com não configurada.</strong> Salve o token do Monday em Configurações para sincronizar as vendas.
               </div>
             )}
 

@@ -8,7 +8,6 @@ import { registerMetaOAuthRoutes } from "../metaOAuth";
 import { registerRestoreRoute } from "../restoreRoute";
 import { registerRecoveryRoute } from "../recoveryRoute";
 import { garantirTabelas } from "../schemaGuard";
-import { registerSalesUploadRoute } from "../salesUpload";
 import { registerScheduledRoutes } from "../scheduledRoutes";
 import { startMondayCron } from "../mondayCron";
 import { startBudgetCron } from "../budgetCron";
@@ -51,8 +50,6 @@ async function startServer() {
   registerMetaOAuthRoutes(app);
   registerRestoreRoute(app);
   registerRecoveryRoute(app);
-  // Sales XLSX upload endpoint
-  registerSalesUploadRoute(app);
   // Scheduled task endpoints (budget check, etc.)
   registerScheduledRoutes(app);
   // tRPC API

@@ -29,7 +29,6 @@ import { syncMondayBoard } from "./mondaySync";
 import { calculateCommercialMetrics, describeRevenueSource, type RevenueSourceType } from "./kpiLineage";
 import { getProfileListingToken, isPendingInstagramSelection, requireAccessibleInstagramProfile } from "./instagramOAuthSelection";
 import { buildClientAdAccountIds } from "./adAccounts";
-import { buildMediaLineage, getHistoricalMetaSourceConfig, shouldUseHistoricalMetaSource } from "./historicalMetaSource";
 
 // ─── Alert Throttle (evita notificações repetidas ao recarregar o dashboard) ──
 // Chave: `${clientId}:${alertType}` → timestamp do último envio
@@ -43,465 +42,6 @@ function shouldSendAlert(clientId: number, alertType: string): boolean {
   if (now - last < ALERT_THROTTLE_MS) return false;
   alertThrottle.set(key, now);
   return true;
-}
-
-// ─── Google Sheets Helper ────────────────────────────────────────────────────
-// Reads a public Google Sheets CSV export and parses Meta Ads data
-// Expected columns: Day, Amount Spent, Messaging Conversations Started (or similar)
-// The sheet URL should be the "publish to web" CSV link or a shared sheet link
-
-function buildCsvUrl(sheetUrl: string): string {
-  // Handle different Google Sheets URL formats
-  // Format 1: https://docs.google.com/spreadsheets/d/SHEET_ID/edit#gid=0
-  // Format 2: https://docs.google.com/spreadsheets/d/SHEET_ID/pub?output=csv
-  // Format 3: Already a CSV export URL
-
-  if (sheetUrl.includes("output=csv") || sheetUrl.includes(".csv")) {
-    return sheetUrl;
-  }
-
-  const match = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  if (!match) return sheetUrl;
-
-  const sheetId = match[1];
-  const gidMatch = sheetUrl.match(/gid=(\d+)/);
-  const gid = gidMatch ? gidMatch[1] : "0";
-
-  return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-}
-
-function parseCsvLine(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-    } else if (ch === "," && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
-function parseMoneyValue(val: string): number {
-  if (!val) return 0;
-  // Remove currency symbols and spaces
-  let cleaned = val.replace(/[R$\s]/g, "").trim();
-  if (!cleaned) return 0;
-
-  // Detect format:
-  // Brazilian: 1.234,56 (dot=thousands, comma=decimal)
-  // International/Sheets: 1234.56 or 1,234.56 (comma=thousands, dot=decimal)
-  const hasDotAndComma = cleaned.includes(".") && cleaned.includes(",");
-  const lastDot = cleaned.lastIndexOf(".");
-  const lastComma = cleaned.lastIndexOf(",");
-
-  if (hasDotAndComma) {
-    if (lastComma > lastDot) {
-      // Brazilian format: 1.234,56 → remove dots, replace comma with dot
-      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
-    } else {
-      // International format: 1,234.56 → remove commas
-      cleaned = cleaned.replace(/,/g, "");
-    }
-  } else if (cleaned.includes(",")) {
-    // Only comma: could be 1234,56 (BR decimal) or 1,234 (thousands)
-    const parts = cleaned.split(",");
-    if (parts.length === 2 && parts[1].length <= 2) {
-      // Treat as decimal separator: 1234,56 → 1234.56
-      cleaned = cleaned.replace(",", ".");
-    } else {
-      // Treat as thousands separator: 1,234 → 1234
-      cleaned = cleaned.replace(/,/g, "");
-    }
-  }
-  // If only dot: keep as-is (e.g. 108.25 is already valid float)
-
-  return parseFloat(cleaned) || 0;
-}
-
-/**
- * Detect whether a list of slash-separated date strings uses DD/MM/YYYY or MM/DD/YYYY.
- * Strategy:
- *   1. If any first segment > 12 → must be DD/MM/YYYY.
- *   2. If any second segment > 12 → must be MM/DD/YYYY.
- *   3. If second segments are all ≤ 12 but first segments are all ≤ 12 AND
- *      second segments show more variety (sequential day-like pattern) → DD/MM/YYYY.
- *   4. Default: DD/MM/YYYY (most common in Brazilian sheets).
- */
-function detectDateFormat(dates: string[]): "DD/MM/YYYY" | "MM/DD/YYYY" {
-  let firstGt12 = 0, secondGt12 = 0;
-  const firstVals = new Set<number>();
-  const secondVals = new Set<number>();
-  for (const raw of dates) {
-    // Strip time portion if present (e.g. "15/05/2026 21:00:58" → "15/05/2026")
-    const s = raw.replace(/"/g, "").trim().split(" ")[0];
-    if (!/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) continue;
-    const parts = s.split("/");
-    const p0 = parseInt(parts[0], 10);
-    const p1 = parseInt(parts[1], 10);
-    if (p0 > 12) firstGt12++;
-    if (p1 > 12) secondGt12++;
-    firstVals.add(p0);
-    secondVals.add(p1);
-  }
-  if (firstGt12 > 0) return "DD/MM/YYYY"; // first segment has days > 12
-  if (secondGt12 > 0) return "MM/DD/YYYY"; // second segment has days > 12
-  // Both segments ≤ 12: use cardinality heuristic.
-  // In DD/MM/YYYY the first segment (day) varies more (up to 31 values per month)
-  // than the second (month, typically 1-2 values per sheet range).
-  if (firstVals.size > secondVals.size) return "DD/MM/YYYY";
-  if (secondVals.size > firstVals.size) return "MM/DD/YYYY";
-  // Tie: default to DD/MM/YYYY (Brazilian sheets are the norm here)
-  return "DD/MM/YYYY";
-}
-
-/**
- * Parse a single date string given a known format.
- */
-function parseSheetDateWithFormat(raw: string, fmt: "DD/MM/YYYY" | "MM/DD/YYYY" | "ISO"): Date | null {
-  if (!raw) return null;
-  // Strip time portion if present (e.g. "15/05/2026 21:00:58" → "15/05/2026")
-  const s = raw.replace(/"/g, "").trim().split(" ")[0];
-  if (!s) return null;
-  if (fmt === "ISO" || /^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const d = new Date(s.slice(0, 10) + "T00:00:00");
-    return isNaN(d.getTime()) ? null : d;
-  }
-  if (!/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
-    const d = new Date(s);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  const parts = s.split("/");
-  let year = parseInt(parts[2], 10);
-  if (year < 100) year += 2000;
-  let day: number, month: number;
-  if (fmt === "DD/MM/YYYY") {
-    day = parseInt(parts[0], 10);
-    month = parseInt(parts[1], 10);
-  } else {
-    month = parseInt(parts[0], 10);
-    day = parseInt(parts[1], 10);
-  }
-  const d = new Date(`${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}T00:00:00`);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-/**
- * Parse a date from a Google Sheets CSV cell (single-date fallback, no context).
- * Uses the > 12 heuristic only. Prefer parseSheetDateWithFormat when format is known.
- */
-function parseSheetDate(raw: string): Date | null {
-  if (!raw) return null;
-  const s = raw.replace(/"/g, "").trim();
-  if (!s) return null;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const d = new Date(s + "T00:00:00");
-    return isNaN(d.getTime()) ? null : d;
-  }
-  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
-    const parts = s.split("/");
-    const p0 = parseInt(parts[0], 10);
-    const p1 = parseInt(parts[1], 10);
-    let year = parseInt(parts[2], 10);
-    if (year < 100) year += 2000;
-    if (p0 > 12) {
-      return parseSheetDateWithFormat(raw, "DD/MM/YYYY");
-    }
-    if (p1 > 12) {
-      return parseSheetDateWithFormat(raw, "MM/DD/YYYY");
-    }
-    // Ambiguous — default to DD/MM/YYYY (Brazilian)
-    return parseSheetDateWithFormat(raw, "DD/MM/YYYY");
-  }
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d;
-}
-async function fetchGoogleSheetsData(sheetUrl: string, from: string, to: string) {
-  try {
-    const csvUrl = buildCsvUrl(sheetUrl);
-    const res = await axios.get(csvUrl, {
-      timeout: 15000,
-      responseType: "text",
-      headers: { "Accept": "text/csv,text/plain,*/*" },
-    });
-
-    const lines = (res.data as string).split("\n").filter((l: string) => l.trim());
-    if (lines.length < 2) return null;
-
-    // Parse header row to find column indices
-    const headers = parseCsvLine(lines[0]).map((h: string) => h.toLowerCase().trim().replace(/"/g, ""));
-
-    // Find relevant columns by common names
-    const findCol = (...names: string[]) => {
-      for (const name of names) {
-        const idx = headers.findIndex((h: string) => h.includes(name.toLowerCase()));
-        if (idx !== -1) return idx;
-      }
-      return -1;
-    };
-
-    const campaignIdx = findCol("campaign name", "campaign", "campanha");
-    const dateIdx = findCol("day", "date", "data", "dia");
-    const spendIdx = findCol("amount spent", "spend", "investimento", "gasto", "custo");
-    const leadsIdx = findCol("messaging conversations started", "messaging conversations", "leads", "conversas", "messages started", "lead");
-    const followersIdx = findCol("instagram follows", "instagram follow", "followers", "seguidores", "new followers", "page likes", "novos seguidores");
-    const reachIdx = findCol("reach", "alcance");
-    const cpcIdx = findCol("cpc (cost per link click)", "cpc", "cost per link click", "custo por clique");
-    const costPerMsgIdx = findCol("cost per messaging conversation started", "cost per messaging", "custo por mensagem", "cost per result");
-    const linkClicksIdx = findCol("link clicks", "link click", "cliques no link", "clicks");
-
-    // Campaign type classifier
-    // IMPORTANT: check FORMULARIO/LINK first — they have priority over WPP
-    // e.g. [FORMULARIO][WPP] and (LINK FORMULARIO)(WPP) should be "formulario"
-    const classifyCampaign = (name: string): "mensagens" | "visitas" | "formulario" | "outro" => {
-      const n = name.toUpperCase();
-      // Formulário has highest priority — even if WPP is in the name
-      if (n.includes("FORMULARIO") || n.includes("FORMULÁRIO") || n.includes("LINK/FORMULARIO") || n.includes("LINK FORMULARIO")) return "formulario";
-      // Visitas (seguidores)
-      if (n.includes("SEGUIDORA") || n.includes("SEGUIDOR")) return "visitas";
-      // Mensagens WPP
-      if (n.includes("WPP") || n.includes("DIRECT") || n.includes("MAMO") || n.includes("CIRURGIA") ||
-          n.includes("PROTESE") || n.includes("LIPO") || n.includes("ABDOMINOPLASTIA")) return "mensagens";
-      return "outro";
-    };
-
-       const fromDate = new Date(from + "T00:00:00");
-    const toDate = new Date(to + "T23:59:59");
-    // Detect date format from all date values in the sheet
-    const allDatesForDetection = lines.slice(1).map((l: string) => {
-      const c = parseCsvLine(l);
-      return dateIdx !== -1 ? (c[dateIdx]?.replace(/"/g, "").trim() ?? "") : "";
-    }).filter(Boolean);
-    const detectedFmt = detectDateFormat(allDatesForDetection);
-    // Totals
-    let investimento = 0;
-    let leads = 0;
-    let novosSeguidores = 0;
-    let alcance = 0;
-    // Per campaign type
-    const byType = {
-      mensagens: { investimento: 0, leads: 0, custoPorMsgWeighted: 0, alcance: 0 },
-      visitas:   { investimento: 0, leads: 0, custoPorMsgWeighted: 0, alcance: 0 },
-      formulario:{ investimento: 0, leads: 0, custoPorMsgWeighted: 0, alcance: 0, cliques: 0 },
-      outro:     { investimento: 0, leads: 0, custoPorMsgWeighted: 0, alcance: 0 },
-    };
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCsvLine(lines[i]);
-      if (!cols.length) continue;
-      // Skip rows with no date (totals/summary rows)
-      const rawDateMeta = dateIdx !== -1 ? cols[dateIdx]?.replace(/"/g, "").trim() : "";
-      if (!rawDateMeta) continue;
-      const itemDateMeta = parseSheetDateWithFormat(rawDateMeta, detectedFmt);
-      if (!itemDateMeta || itemDateMeta < fromDate || itemDateMeta > toDate) continue;;
-      // Determine campaign type
-      const campaignName = campaignIdx !== -1 ? (cols[campaignIdx]?.replace(/"/g, "").trim() ?? "") : "";
-      const tipo = classifyCampaign(campaignName);
-
-      const daySpend = spendIdx !== -1 ? parseMoneyValue(cols[spendIdx]?.replace(/"/g, "") ?? "") : 0;
-      const dayLeads = leadsIdx !== -1 ? (parseInt(cols[leadsIdx]?.replace(/"/g, "").trim() ?? "0", 10) || 0) : 0;
-      const dayReach = reachIdx !== -1 ? (parseInt(cols[reachIdx]?.replace(/"/g, "").trim() ?? "0", 10) || 0) : 0;
-      const dayFollowers = followersIdx !== -1 ? (parseInt(cols[followersIdx]?.replace(/"/g, "").trim() ?? "0", 10) || 0) : 0;
-      const costPerMsg = costPerMsgIdx !== -1 ? parseMoneyValue(cols[costPerMsgIdx]?.replace(/"/g, "") ?? "") : 0;
-      const cpcVal = cpcIdx !== -1 ? parseMoneyValue(cols[cpcIdx]?.replace(/"/g, "") ?? "") : 0;
-      const dayLinkClicks = linkClicksIdx !== -1 ? (parseInt(cols[linkClicksIdx]?.replace(/"/g, "").trim() ?? "0", 10) || 0) : 0;
-
-      investimento += daySpend;
-      leads += dayLeads;
-      novosSeguidores += dayFollowers;
-      alcance += dayReach;
-
-      byType[tipo].investimento += daySpend;
-      byType[tipo].leads += dayLeads;
-      byType[tipo].alcance += dayReach;
-      // Weighted: accumulate costPerMsg * dayLeads so we can divide by total leads later
-      if (costPerMsg > 0 && dayLeads > 0) byType[tipo].custoPorMsgWeighted += costPerMsg * dayLeads;
-      // Use direct Link Clicks if available, otherwise estimate from CPC
-      if (tipo === "formulario") {
-        if (dayLinkClicks > 0) {
-          byType.formulario.cliques += dayLinkClicks;
-        } else if (cpcVal > 0 && daySpend > 0) {
-          byType.formulario.cliques += Math.round(daySpend / cpcVal);
-        }
-      }
-    }
-
-    // Compute derived KPIs per type
-    const msg = byType.mensagens;
-    const vis = byType.visitas;
-    const form = byType.formulario;
-
-    // Custo por lead (mensagens): weighted average of Cost per Messaging Conversation Started
-    // = sum(costPerMsg * dayLeads) / totalLeads — mirrors how Meta Ads calculates it
-    const custoPorLeadDireto = msg.leads > 0 ? msg.custoPorMsgWeighted / msg.leads : 0;
-    // Custo por visita ao perfil: investimento seguidoras ÷ alcance seguidoras
-    const custoPorVisita = vis.alcance > 0 ? vis.investimento / vis.alcance : 0;
-    // Cliques formulário and custo por clique
-    const cliquesFormulario = form.cliques;
-    const custoPorClique = cliquesFormulario > 0 ? form.investimento / cliquesFormulario : 0;
-
-    // Legacy totals (for backward compat)
-    const cliquesEstimados = cliquesFormulario;
-
-    return {
-      investimento,
-      leads: msg.leads, // only messaging leads
-      novosSeguidores,
-      alcance: vis.alcance, // only profile visit reach
-      cliquesEstimados,
-      custoPorClique,
-      custoPorLeadDireto,
-      // Split by campaign type
-      campanhas: {
-        mensagens: { investimento: msg.investimento, leads: msg.leads, custoPorLead: custoPorLeadDireto },
-        visitas:   { investimento: vis.investimento, alcance: vis.alcance, custoPorVisita },
-        formulario:{ investimento: form.investimento, cliques: cliquesFormulario, custoPorClique },
-      },
-    };
-  } catch (err: any) {
-    console.error("[Google Sheets] Error:", err?.message);
-    return null;
-  }
-}
-
-// ─── Sales Sheet (Google Sheets) ─────────────────────────────────────────────
-// Reads a public Google Sheets CSV with columns: DATA, VENDAS, TOTAL EM VENDAS
-// Date format: DD/MM/YYYY, values: R$ XX.XXX,XX (Brazilian)
-async function fetchSalesSheetData(sheetUrl: string, from: string, to: string) {
-  try {
-    const csvUrl = buildCsvUrl(sheetUrl);
-    const res = await axios.get(csvUrl, {
-      timeout: 15000,
-      responseType: "text",
-      headers: { "Accept": "text/csv,text/plain,*/*" },
-    });
-
-    const lines = (res.data as string).split("\n").filter((l: string) => l.trim());
-    if (lines.length < 2) return null;
-
-    const headers = parseCsvLine(lines[0]).map((h: string) => h.toLowerCase().trim().replace(/"/g, ""));
-
-    const findCol = (...names: string[]) => {
-      for (const name of names) {
-        const idx = headers.findIndex((h: string) => h.includes(name.toLowerCase()));
-        if (idx !== -1) return idx;
-      }
-      return -1;
-    };
-
-        const dateIdx = findCol("data", "date", "dia");
-    const vendasIdx = findCol("vendas", "sales", "conversoes", "conversões");
-    // E-commerce format: "Total" column (not "Total em Vendas" or "Subtotal")
-    // Use exact match first to avoid "subtotal" matching "total"
-    const totalIdxExact = headers.findIndex(h => h === "total");
-    const totalIdx = findCol("total em vendas", "total vendas", "receita", "revenue") !== -1
-      ? findCol("total em vendas", "total vendas", "receita", "revenue")
-      : totalIdxExact !== -1 ? totalIdxExact : findCol("total", "valor");
-    // E-commerce: Status do Pagamento column for filtering
-    const paymentStatusIdx = findCol("status do pagamento", "status pagamento", "pagamento", "payment status", "payment");
-    // E-commerce: Número do Pedido column (each row = 1 order)
-    const orderNumberIdx = findCol("número do pedido", "numero do pedido", "pedido", "order", "order number");
-    const isEcommerceFormat = paymentStatusIdx !== -1 && orderNumberIdx !== -1;
-
-    const fromDate = new Date(from + "T00:00:00");
-    const toDate = new Date(to + "T23:59:59");
-    // Detect date format from all date values in the sheet
-    const allSalesDates = lines.slice(1).map((l: string) => {
-      const c = parseCsvLine(l);
-      return dateIdx !== -1 ? (c[dateIdx]?.replace(/"/g, "").trim() ?? "") : "";
-    }).filter(Boolean);
-    const salesFmt = detectDateFormat(allSalesDates);
-    let vendas = 0;
-    let totalEmVendas = 0;
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCsvLine(lines[i]);
-      if (!cols.length) continue;
-      // Skip rows with no date (e.g. totals/summary rows at the bottom of the sheet)
-      const rawDate = dateIdx !== -1 ? cols[dateIdx]?.replace(/"/g, "").trim() : "";
-      if (!rawDate) continue;
-      const itemDate = parseSheetDateWithFormat(rawDate, salesFmt);
-      if (!itemDate || itemDate < fromDate || itemDate > toDate) continue;
-      // E-commerce format: filter by payment status = "Confirmado"
-      if (isEcommerceFormat && paymentStatusIdx !== -1) {
-        const paymentStatus = cols[paymentStatusIdx]?.replace(/"/g, "").trim().toLowerCase() ?? "";
-        if (paymentStatus !== "confirmado" && paymentStatus !== "confirmed") continue;
-      }
-      // Count orders: in e-commerce format each row = 1 order; in legacy format use vendasIdx
-      if (isEcommerceFormat) {
-        vendas += 1;
-      } else if (vendasIdx !== -1) {
-        vendas += parseInt(cols[vendasIdx]?.replace(/"/g, "").trim() ?? "0", 10) || 0;
-      }
-      if (totalIdx !== -1) {
-        totalEmVendas += parseMoneyValue(cols[totalIdx]?.replace(/"/g, "") ?? "");
-      }
-    }
-
-    return { vendas, totalEmVendas };
-  } catch (err: any) {
-    console.error("[Sales Sheet] Error:", err?.message);
-    return null;
-  }
-}
-
-// ─── Followers Sheet (Google Sheets) ────────────────────────────────────────
-// Reads a public Google Sheets CSV with columns: Day, New Followers
-async function fetchFollowersSheetData(sheetUrl: string, from: string, to: string) {
-  try {
-    const csvUrl = buildCsvUrl(sheetUrl);
-    const res = await axios.get(csvUrl, {
-      timeout: 15000,
-      responseType: "text",
-      headers: { "Accept": "text/csv,text/plain,*/*" },
-    });
-
-    const lines = (res.data as string).split("\n").filter((l: string) => l.trim());
-    if (lines.length < 2) return null;
-
-    const headers = parseCsvLine(lines[0]).map((h: string) => h.toLowerCase().trim().replace(/"/g, ""));
-    const findCol = (...names: string[]) => {
-      for (const name of names) {
-        const idx = headers.findIndex((h: string) => h.includes(name.toLowerCase()));
-        if (idx !== -1) return idx;
-      }
-      return -1;
-    };
-
-       const dateIdx = findCol("day", "date", "data", "dia");
-    const followersIdx = findCol("new followers", "followers", "seguidores", "novos seguidores");
-    const fromDate = new Date(from + "T00:00:00");
-    const toDate = new Date(to + "T23:59:59");
-    // Detect date format from all date values in the sheet
-    const allFollowersDates = lines.slice(1).map((l: string) => {
-      const c = parseCsvLine(l);
-      return dateIdx !== -1 ? (c[dateIdx]?.replace(/"/g, "").trim() ?? "") : "";
-    }).filter(Boolean);
-    const followersFmt = detectDateFormat(allFollowersDates);
-    let novosSeguidores = 0;
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCsvLine(lines[i]);
-      if (!cols.length) continue;
-      // Skip rows with no date (totals/summary rows)
-      const rawDateFollowers = dateIdx !== -1 ? cols[dateIdx]?.replace(/"/g, "").trim() : "";
-      if (!rawDateFollowers) continue;
-      const itemDateFollowers = parseSheetDateWithFormat(rawDateFollowers, followersFmt);
-      if (!itemDateFollowers || itemDateFollowers < fromDate || itemDateFollowers > toDate) continue;;
-      if (followersIdx !== -1) {
-        novosSeguidores += parseInt(cols[followersIdx]?.replace(/"/g, "").trim() ?? "0", 10) || 0;
-      }
-    }
-
-    return { novosSeguidores };
-  } catch (err: any) {
-    console.error("[Followers Sheet] Error:", err?.message);
-    return null;
-  }
 }
 
 ///// Use getSalesForPeriod from db.ts (filters by uploadedAt, not consultDate)
@@ -518,11 +58,8 @@ async function getSalesUploadInfo(clientId: number) {
 
 // ─── Shared KPI Fetcher (used by getKpis and generateReport) ────────────────
 export async function fetchClientKpis(clientId: number, from: string, to: string, salesChannelFilter?: string | null) {
-  const [metaTokenIntegrationRaw, sheetsIntegration, salesIntegration, followersIntegration, tokenAgencia] = await Promise.all([
+  const [metaTokenIntegrationRaw, tokenAgencia] = await Promise.all([
     getIntegration(clientId, "meta_token"),
-    getIntegration(clientId, "google_sheets"),
-    getIntegration(clientId, "sales_sheet"),
-    getIntegration(clientId, "followers_sheet"),
     getSystemSetting(CHAVE_TOKEN_AGENCIA),
   ]);
 
@@ -545,10 +82,7 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
   let campanhasDetalhe: import('./metaApi').CampanhaDetalhe[] = [];
   let metaApiSuccess = false;
   let metaDataRef: import('./metaApi').MetaAdsData | null = null;
-  const historicalMetaSource = getHistoricalMetaSourceConfig(sheetsIntegration?.extraConfig);
-  const useHistoricalMetaSheet = shouldUseHistoricalMetaSource(historicalMetaSource, to);
-  let usedGoogleSheetMedia = false;
-  if (metaTokenIntegration?.accessToken && metaTokenIntegration?.adAccountId && !useHistoricalMetaSheet) {
+  if (metaTokenIntegration?.accessToken && metaTokenIntegration?.adAccountId) {
     try {
       console.log(`[Meta API] Using direct token for client ${clientId}`);
       // Build list of all ad accounts (primary + additional from extraConfig)
@@ -626,45 +160,18 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
       metaApiSuccess = true;
       novosSeguidores = metaData.novosSeguidores;
     } catch (apiErr: any) {
-      console.error(`[Meta API] Error fetching data: ${apiErr?.message}. Falling back to sheets.`);
+      console.error(`[Meta API] Error fetching data: ${apiErr?.message}`);
       metaApiSuccess = false;
     }
   }
-  if (!metaApiSuccess && sheetsIntegration?.accessToken) {
-    const sheetsData = await fetchGoogleSheetsData(sheetsIntegration.accessToken, from, to);
-    if (sheetsData) {
-      investimento = sheetsData.investimento;
-      leads = sheetsData.leads;
-      novosSeguidores = sheetsData.novosSeguidores;
-      alcance = sheetsData.alcance ?? 0;
-      cliquesEstimados = sheetsData.cliquesEstimados ?? 0;
-      custoPorClique = sheetsData.custoPorClique ?? 0;
-      custoPorLeadDireto = sheetsData.custoPorLeadDireto ?? 0;
-      campanhas = sheetsData.campanhas;
-      usedGoogleSheetMedia = true;
-      if (useHistoricalMetaSheet) metaApiSuccess = true;
-    }
-  }
-  if (salesIntegration?.accessToken) {
-    const salesData = await fetchSalesSheetData(salesIntegration.accessToken, from, to);
-    if (salesData) {
-      vendas = salesData.vendas;
-      totalEmVendas = salesData.totalEmVendas;
-      revenueSource = "sales_sheet";
-    }
-  }
-  if (!metaTokenIntegration?.accessToken && followersIntegration?.accessToken) {
-    const followersData = await fetchFollowersSheetData(followersIntegration.accessToken, from, to);
-    if (followersData) { novosSeguidores = followersData.novosSeguidores; }
-  }
-  const xlsxSales = await getSalesForPeriod(clientId, from, to, salesChannelFilter);
+  const vendasCrm = await getSalesForPeriod(clientId, from, to, salesChannelFilter);
   let consultas = 0, totalCirurgias = 0;
-  // XLSX data always takes priority over sheets/legacy data when available
-  if (xlsxSales.hasData) {
-    consultas = xlsxSales.consultas;
-    vendas = xlsxSales.fechamentos;
-    totalEmVendas = xlsxSales.totalEmVendas;
-    totalCirurgias = xlsxSales.totalCirurgias ?? 0;
+  // Base comercial sincronizada do Monday.
+  if (vendasCrm.hasData) {
+    consultas = vendasCrm.consultas;
+    vendas = vendasCrm.fechamentos;
+    totalEmVendas = vendasCrm.totalEmVendas;
+    totalCirurgias = vendasCrm.totalCirurgias ?? 0;
     revenueSource = "sales_records";
     revenueUploadedAt = (await getSalesUploadInfoFromDb(clientId))?.uploadedAt ?? null;
   }
@@ -707,7 +214,7 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
       console.error(`[fetchClientKpis] IG fallback error: ${e?.message}`, e?.response?.data ? JSON.stringify(e.response.data) : '');
     }
   }
-  const totalConsultas = xlsxSales?.hasData ? (xlsxSales.totalConsultas ?? 0) : 0;
+  const totalConsultas = vendasCrm?.hasData ? (vendasCrm.totalConsultas ?? 0) : 0;
   const novosContatos = metaApiSuccess ? (metaDataRef?.novosContatos ?? 0) : 0;
   const totalContatosMeta = metaApiSuccess ? (metaDataRef?.totalContatos ?? 0) : 0;
   const conversasRespondidas = metaApiSuccess ? (metaDataRef?.conversasRespondidas ?? 0) : 0;
@@ -715,8 +222,7 @@ export async function fetchClientKpis(clientId: number, from: string, to: string
   const leadsWhatsapp = metaApiSuccess ? (metaDataRef?.leadsWhatsapp ?? 0) : 0;
   const commercialMetrics = calculateCommercialMetrics({ investimento, leads, consultas, fechamentos: vendas, totalConsultas, totalCirurgias, totalEmVendas });
   const revenueLineage = describeRevenueSource(revenueSource, revenueUploadedAt);
-  const mediaLineage = buildMediaLineage(historicalMetaSource, useHistoricalMetaSheet && usedGoogleSheetMedia, metaApiSuccess && !useHistoricalMetaSheet, usedGoogleSheetMedia);
-  return { investimento, leads, consultas, vendas, totalEmVendas, totalCirurgias, totalConsultas, novosSeguidores, alcance, cliquesEstimados, custoPorClique, custoPorLeadDireto, campanhas, campanhasDetalhe, novosContatos, totalContatosMeta, conversasRespondidas, leadsInstagram, leadsWhatsapp, metaApiSuccess, mediaDataAvailable: metaApiSuccess || Boolean(sheetsIntegration?.accessToken), ...commercialMetrics, revenueLineage, mediaLineage };
+  return { investimento, leads, consultas, vendas, totalEmVendas, totalCirurgias, totalConsultas, novosSeguidores, alcance, cliquesEstimados, custoPorClique, custoPorLeadDireto, campanhas, campanhasDetalhe, novosContatos, totalContatosMeta, conversasRespondidas, leadsInstagram, leadsWhatsapp, metaApiSuccess, mediaDataAvailable: metaApiSuccess, ...commercialMetrics, revenueLineage };
 }
 
 // ─── Dashboard Router ───────────────────────────────────────────────────
@@ -741,39 +247,6 @@ const dashboardRouter = router({
     .input(z.object({ clientId: z.number() }))
     .query(async ({ input }) => {
       return getIntegrationsByClientId(input.clientId);
-    }),
-
-  saveIntegration: protectedProcedure
-    .input(z.object({
-      clientId: z.number(),
-      provider: z.enum(["google_sheets", "sales_sheet", "followers_sheet"]),
-      sheetUrl: z.string().optional(),
-    }))
-    .mutation(async ({ input }) => {
-      await upsertIntegration({
-        clientId: input.clientId,
-        provider: input.provider,
-        accessToken: input.sheetUrl ?? null,
-        adAccountId: null,
-        boardId: null,
-      });
-      return { success: true };
-    }),
-
-  removeIntegration: protectedProcedure
-    .input(z.object({
-      clientId: z.number(),
-      provider: z.enum(["google_sheets", "sales_sheet", "followers_sheet"]),
-    }))
-    .mutation(async ({ input }) => {
-      const db = await getDb();
-      if (!db) return { success: false };
-      await db.delete(integrations)
-        .where(drizzleAnd(
-          drizzleEq(integrations.clientId, input.clientId),
-          drizzleEq(integrations.provider as any, input.provider),
-        ));
-      return { success: true };
     }),
 
   clearSalesRecords: protectedProcedure
@@ -968,42 +441,6 @@ const dashboardRouter = router({
       const tokenWarning = daysSince > 50 && !tokenExpired;
       return { connected: true, pending: false, igUserId: ig.metaIgUserId, username: ig.metaIgUsername ?? null, tokenExpired, tokenWarning, daysSince, updatedAt };
     }),
-  testIntegration: protectedProcedure
-    .input(z.object({ clientId: z.number(), provider: z.enum(["google_sheets", "sales_sheet", "followers_sheet"]) }))
-    .mutation(async ({ input }) => {
-      const integration = await getIntegration(input.clientId, input.provider);
-      if (!integration?.accessToken) return { success: false, message: "Configuração não encontrada" };
-
-      if (input.provider === "google_sheets") {
-        const today = new Date().toISOString().slice(0, 10);
-        const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-        const result = await fetchGoogleSheetsData(integration.accessToken, weekAgo, today);
-        return result !== null
-          ? { success: true, message: `Planilha Meta Ads conectada! Investimento: R$ ${result.investimento.toFixed(2)}` }
-          : { success: false, message: "Falha ao ler planilha — verifique se a URL está correta e a planilha está pública" };
-      }
-
-      if (input.provider === "sales_sheet") {
-        const today = new Date().toISOString().slice(0, 10);
-        const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-        const result = await fetchSalesSheetData(integration.accessToken, monthAgo, today);
-        return result !== null
-          ? { success: true, message: `Planilha de Vendas conectada! ${result.vendas} vendas / R$ ${result.totalEmVendas.toFixed(2)}` }
-          : { success: false, message: "Falha ao ler planilha de vendas — verifique se a URL está correta e a planilha está pública" };
-      }
-
-      if (input.provider === "followers_sheet") {
-        const today = new Date().toISOString().slice(0, 10);
-        const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-        const result = await fetchFollowersSheetData(integration.accessToken, monthAgo, today);
-        return result !== null
-          ? { success: true, message: `Planilha de Seguidores conectada! ${result.novosSeguidores} novos seguidores no último mês` }
-          : { success: false, message: "Falha ao ler planilha de seguidores — verifique se a URL está correta e a planilha está pública" };
-      }
-
-      return { success: false, message: "Provider desconhecido" };
-    }),
-
   getKpis: protectedProcedure
     .input(z.object({ clientId: z.number(), from: z.string(), to: z.string() }))
     .query(async ({ input }) => {
@@ -1024,53 +461,6 @@ const dashboardRouter = router({
         vendas: s.vendas ?? 0,
         totalEmVendas: parseFloat(String(s.totalEmVendas ?? 0)),
       }));
-    }),
-
-  saveSnapshot: protectedProcedure
-    .input(z.object({ clientId: z.number(), date: z.string() }))
-    .mutation(async ({ input }) => {
-      const { clientId, date } = input;
-      const [sheetsIntegration, salesIntegration] = await Promise.all([
-        getIntegration(clientId, "google_sheets"),
-        getIntegration(clientId, "sales_sheet"),
-      ]);
-
-      let investimento = 0, leads = 0, novosSeguidores = 0, vendas = 0, totalEmVendas = 0;
-      let rawMetaData: any = null;
-      let rawSalesData: any = null;
-
-      if (sheetsIntegration?.accessToken) {
-        const sheetsData = await fetchGoogleSheetsData(sheetsIntegration.accessToken, date, date);
-        if (sheetsData) {
-          investimento = sheetsData.investimento;
-          leads = sheetsData.leads;
-          novosSeguidores = sheetsData.novosSeguidores;
-          rawMetaData = sheetsData;
-        }
-      }
-
-      if (salesIntegration?.accessToken) {
-        const salesData = await fetchSalesSheetData(salesIntegration.accessToken, date, date);
-        if (salesData) {
-          vendas = salesData.vendas;
-          totalEmVendas = salesData.totalEmVendas;
-          rawSalesData = salesData;
-        }
-      }
-
-      await upsertSnapshot({
-        clientId,
-        snapshotDate: date,
-        investimento: String(investimento) as any,
-        leads,
-        vendas,
-        totalEmVendas: String(totalEmVendas) as any,
-        novosSeguidores,
-        rawMetaData,
-        rawMondayData: rawSalesData,
-      });
-
-      return { success: true };
     }),
 
   diagnoseMondayBoard: protectedProcedure
@@ -1310,41 +700,6 @@ ATENÇÃO: escreva os parágrafos de análise com o conteúdo real. Não escreva
         kpis: { investimento, leads, custoPorLead, taxaConversao, roas, vendas, custoPorVenda, totalEmVendas, ticketMedio, novosSeguidores, consultas, totalCirurgias, hasMondayData, custoPorConsulta, igReach, igEngaged, igLinkTaps, igFollows, igFollowers, igUsername, hasInstagram },
         analysis,
       };
-    }),
-
-  // ─── Sync All Clients ────────────────────────────────────────────────────────
-  syncAllClients: protectedProcedure
-    .input(z.object({ from: z.string(), to: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      const clients = await getClientsByUserId(ctx.user.id);
-      const results: { clientId: number; clientName: string; success: boolean; error?: string }[] = [];
-      for (const client of clients) {
-        try {
-          const [sheetsIntegration, salesIntegration, followersIntegration] = await Promise.all([
-            getIntegration(client.id, "google_sheets"),
-            getIntegration(client.id, "sales_sheet"),
-            getIntegration(client.id, "followers_sheet"),
-          ]);
-          // Skip clients with no integrations configured
-          if (!sheetsIntegration?.accessToken && !salesIntegration?.accessToken && !followersIntegration?.accessToken) {
-            results.push({ clientId: client.id, clientName: client.name, success: false, error: "Sem planilhas configuradas" });
-            continue;
-          }
-          // Fetch all data in parallel
-          const [sheetsData, salesData, followersData] = await Promise.all([
-            sheetsIntegration?.accessToken ? fetchGoogleSheetsData(sheetsIntegration.accessToken, input.from, input.to) : Promise.resolve(null),
-            salesIntegration?.accessToken ? fetchSalesSheetData(salesIntegration.accessToken, input.from, input.to) : Promise.resolve(null),
-            followersIntegration?.accessToken ? fetchFollowersSheetData(followersIntegration.accessToken, input.from, input.to) : Promise.resolve(null),
-          ]);
-          results.push({ clientId: client.id, clientName: client.name, success: true });
-        } catch (err: any) {
-          results.push({ clientId: client.id, clientName: client.name, success: false, error: err?.message ?? "Erro desconhecido" });
-        }
-      }
-      const succeeded = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success && r.error !== "Sem planilhas configuradas").length;
-      const skipped = results.filter(r => r.error === "Sem planilhas configuradas").length;
-      return { results, succeeded, failed, skipped, total: clients.length };
     }),
 
   updateWhatsapp: protectedProcedure

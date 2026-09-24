@@ -12,6 +12,6 @@ describe("kpi lineage", () => {
     const result = calculateCommercialMetrics({ investimento: 100, leads: 10, consultas: 0, fechamentos: 2, totalConsultas: 0, totalCirurgias: 0, totalEmVendas: 300 });
     expect(result.receitaTotal).toBe(300);
     expect(result.roas).toBe(3);
-    expect(describeRevenueSource("sales_sheet").type).toBe("sales_sheet");
+    expect(describeRevenueSource("unavailable").type).toBe("unavailable");
   });
 });

@@ -1,10 +1,8 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { BarChart3, TrendingUp, Users, Zap, Target, Instagram, CheckCircle2, ArrowRight, ChevronRight } from "lucide-react";
 
 export default function Home() {
-  const { isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
 
   // Check if manager token exists in localStorage
@@ -16,11 +14,7 @@ export default function Home() {
       navigate("/manager/dashboard");
       return;
     }
-    // Only redirect to Manus dashboard if explicitly authenticated via Manus OAuth
-    if (!loading && isAuthenticated) {
-      navigate("/dashboard");
-    }
-  }, [isAuthenticated, loading, navigate, hasManagerToken]);
+  }, [navigate, hasManagerToken]);
 
   const features = [
     {

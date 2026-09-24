@@ -296,7 +296,7 @@ export default function CRMPage() {
       {/* Sidebar - client list */}
       <div className="w-56 shrink-0 border-r flex flex-col" style={{ borderColor: "oklch(0.22 0.012 255)", background: "oklch(0.13 0.012 255)" }}>
         <div className="px-4 py-4 border-b" style={{ borderColor: "oklch(0.22 0.012 255)" }}>
-          <button onClick={() => navigate("/dashboard")} className="text-xs flex items-center gap-1.5 mb-3 hover:opacity-80 transition-opacity" style={{ color: "oklch(0.55 0.010 240)" }}>
+          <button onClick={() => navigate("/manager/dashboard")} className="text-xs flex items-center gap-1.5 mb-3 hover:opacity-80 transition-opacity" style={{ color: "oklch(0.55 0.010 240)" }}>
             ← Dashboard
           </button>
           <div className="flex items-center gap-2">

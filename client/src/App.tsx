@@ -6,8 +6,6 @@ import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
-import Settings from "./pages/Settings";
 import Privacy from "./pages/Privacy";
 import ImportarDados from "@/pages/ImportarDados";
 import RecuperarAcesso from "@/pages/RecuperarAcesso";
@@ -42,8 +40,6 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/settings" component={Settings} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/importar" component={ImportarDados} />
       <Route path="/recuperar" component={RecuperarAcesso} />

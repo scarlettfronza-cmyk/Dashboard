@@ -104,7 +104,7 @@ export async function getIntegrationsByClientId(clientId: number) {
   return rows.map((row) => ({ ...row, accessToken: decryptSecret(row.accessToken) }));
 }
 
-export async function getIntegration(clientId: number, provider: "meta_ads" | "monday" | "google_sheets" | "sales_sheet" | "followers_sheet" | "instagram_oauth" | "meta_token") {
+export async function getIntegration(clientId: number, provider: "meta_ads" | "monday" | "instagram_oauth" | "meta_token") {
   const db = await getDb();
   if (!db) return null;
   const result = await db.select().from(integrations).where(and(eq(integrations.clientId, clientId), eq(integrations.provider, provider))).limit(1);
@@ -165,7 +165,7 @@ export async function getSnapshotsInRange(clientId: number, from: string, to: st
   ).orderBy(desc(snapshots.snapshotDate));
 }
 
-// ─── Sales Records (Monday.com XLSX) ───────────────────────────────────────────────────
+// ─── Sales Records (base comercial sincronizada do Monday.com) ───────────────────────────────────────────────────
 const MONTH_NAMES_PT: Record<string, number> = {
   jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5,
   jul: 6, ago: 7, agosto: 7, set: 8, out: 9, nov: 10, dez: 11,
