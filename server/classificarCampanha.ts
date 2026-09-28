@@ -58,10 +58,12 @@ export function tipoPeloNome(nome: string): TipoCampanha | null {
 export function tipoPeloObjetivo(objective: string | null | undefined, p: PistasCampanha): TipoCampanha | null {
   const o = (objective ?? "").toUpperCase();
   if (!o) return null;
-  // Leads e engajamento são ambíguos no Meta: a conversa ou o lead diz qual foi.
-  if (o === "OUTCOME_LEADS" || o === "OUTCOME_ENGAGEMENT") {
-    if ((p.conversas ?? 0) > 0) return "mensagens";
-    if ((p.leadsFormulario ?? 0) > 0) return "formulario";
+  // Leads, engajamento e vendas são ambíguos no Meta: o resultado
+  // predominante (conversas ou formulários) diz qual foi.
+  if (o === "OUTCOME_LEADS" || o === "OUTCOME_ENGAGEMENT" || o === "OUTCOME_SALES" || o === "CONVERSIONS") {
+    const conversas = p.conversas ?? 0, forms = p.leadsFormulario ?? 0;
+    if (forms > conversas) return "formulario";
+    if (conversas > 0) return "mensagens";
     if (o === "OUTCOME_ENGAGEMENT" && (p.visualizacoes ?? 0) > 0) return "video";
     return o === "OUTCOME_LEADS" ? "formulario" : null;
   }

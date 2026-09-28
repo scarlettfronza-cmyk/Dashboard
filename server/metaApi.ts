@@ -209,6 +209,9 @@ export async function fetchMetaAdsFromApi(
   let formularioLeads = 0;
   let formularioCustoPonderado = 0;
   let formularioLeadsComCusto = 0;
+  // Gasto das campanhas que geraram lead de formulário, seja qual for a
+  // gaveta delas: é a base do CPL quando o Meta não informa o custo.
+  let formularioGastoComLeads = 0;
   let videoInvestimento = 0;
   let videoVisualizacoes = 0;
   let outrosInvestimento = 0;
@@ -275,15 +278,28 @@ export async function fetchMetaAdsFromApi(
       visualizacoes: videoViews, alcance: reach, cliques: linkClicks,
     });
 
-    if (tipo === "formulario") {
-      formularioInvestimento += spend;
-      formularioCliques += linkClicks;
-      formularioLeads += formLeads;
+    // Os leads seguem o tipo do lead, não a gaveta da campanha: uma conversa
+    // conta em "mensagens" e um formulário em "formulário" venham de onde
+    // vierem. Assim mensagens + formulário = total, sempre. A gaveta decide
+    // só para onde vai o investimento.
+    mensagensLeads += msgConversations;
+    if (msgConversations > 0 && msgCostPerLead > 0) {
+      mensagensCostPerLead += msgCostPerLead * msgConversations;
+      mensagensLeadRows += msgConversations;
+    }
+    formularioLeads += formLeads;
+    if (formLeads > 0) {
+      formularioGastoComLeads += spend;
       const cpl = reportedCostPer(costPerAction, FORM_ACTIONS);
-      if (cpl != null && formLeads > 0) {
+      if (cpl != null) {
         formularioCustoPonderado += cpl * formLeads;
         formularioLeadsComCusto += formLeads;
       }
+    }
+
+    if (tipo === "formulario") {
+      formularioInvestimento += spend;
+      formularioCliques += linkClicks;
     } else if (tipo === "visitas") {
       visitasInvestimento += spend;
       visitasAlcance += reach;
@@ -295,11 +311,6 @@ export async function fetchMetaAdsFromApi(
     } else {
       // mensagens (WPP, DIRECT, MAMO, CIRURGIA, etc.)
       mensagensInvestimento += spend;
-      mensagensLeads += msgConversations;
-      if (msgConversations > 0 && msgCostPerLead > 0) {
-        mensagensCostPerLead += msgCostPerLead * msgConversations;
-        mensagensLeadRows += msgConversations;
-      }
     }
   }
 
@@ -336,7 +347,7 @@ export async function fetchMetaAdsFromApi(
       leads: formularioLeads,
       custoPorLead: blendCostPerLead(
         formularioCustoPonderado, formularioLeadsComCusto,
-        formularioInvestimento, formularioLeads,
+        formularioGastoComLeads, formularioLeads,
       ),
     },
     video: {

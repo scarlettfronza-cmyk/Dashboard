@@ -28,10 +28,14 @@ describe("pelo objetivo e pelo resultado", () => {
   it("MESSAGES → mensagens mesmo sem nome", () => {
     expect(classificarCampanha({ nome: "Camp 1", objective: "MESSAGES" })).toBe("mensagens");
   });
-  it("OUTCOME_LEADS com conversas → mensagens; com lead de formulário → formulário; sem nada → formulário", () => {
+  it("OUTCOME_LEADS: decide pelo resultado predominante; sem nada → formulário", () => {
     expect(classificarCampanha({ nome: "C", objective: "OUTCOME_LEADS", conversas: 12 })).toBe("mensagens");
     expect(classificarCampanha({ nome: "C", objective: "OUTCOME_LEADS", leadsFormulario: 3 })).toBe("formulario");
+    expect(classificarCampanha({ nome: "C", objective: "OUTCOME_LEADS", conversas: 2, leadsFormulario: 40 })).toBe("formulario");
     expect(classificarCampanha({ nome: "C", objective: "OUTCOME_LEADS" })).toBe("formulario");
+  });
+  it("OUTCOME_SALES com formulários → formulário", () => {
+    expect(classificarCampanha({ nome: "C", objective: "OUTCOME_SALES", leadsFormulario: 9 })).toBe("formulario");
   });
   it("OUTCOME_ENGAGEMENT com views → vídeo; com conversas → mensagens", () => {
     expect(classificarCampanha({ nome: "C", objective: "OUTCOME_ENGAGEMENT", visualizacoes: 900 })).toBe("video");
