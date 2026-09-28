@@ -700,32 +700,39 @@ export const managersRouter = router({
     }),
 
   // ── Register a new manager (public self-signup) ───────────────────────────────────────────────────
-  register: publicProcedure
+  // ── Nova gestora: só quem já entrou pode criar outra conta ──────────────
+  // O cadastro era público: qualquer pessoa com o link criava uma conta de
+  // gestora. Agora exige o JWT de uma gestora existente, e a conta nova
+  // nasce sem clientes vinculados.
+  criarGestora: publicProcedure
     .input(z.object({
+      token: z.string(),
       name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
       email: z.string().email("E-mail inválido"),
       password: z.string().min(8, "Senha deve ter pelo menos 8 caracteres"),
-      agencyName: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      await verifyManagerJwt(input.token);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
-      const existing = await db.select({ id: managers.id }).from(managers)
-        .where(eq(managers.email, input.email)).limit(1);
-      if (existing.length > 0) {
-        throw new TRPCError({ code: "CONFLICT", message: "Este e-mail já está cadastrado" });
-      }
+      const email = input.email.trim().toLowerCase();
+      const existing = await db.select({ id: managers.id }).from(managers).where(eq(managers.email, email)).limit(1);
+      if (existing.length > 0) throw new TRPCError({ code: "CONFLICT", message: "Este e-mail já está cadastrado" });
       const passwordHash = await bcrypt.hash(input.password, 12);
-      const displayName = input.agencyName ? `${input.name} — ${input.agencyName}` : input.name;
-      await db.insert(managers).values({ name: displayName, email: input.email, passwordHash, active: 1 });
-      const newManager = await db.select().from(managers).where(eq(managers.email, input.email)).limit(1);
-      if (!newManager[0]) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao criar conta" });
-      const token = await new SignJWT({ managerId: newManager[0].id, email: newManager[0].email, name: newManager[0].name })
-        .setProtectedHeader({ alg: "HS256" })
-        .setExpirationTime(MANAGER_JWT_EXPIRY)
-        .sign(getManagerJwtSecret());
-      return { token, name: newManager[0].name, email: newManager[0].email };
+      await db.insert(managers).values({ name: input.name.trim(), email, passwordHash, active: 1 });
+      return { ok: true, email };
     }),
+
+  listarGestoras: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const rows = await db.select({ id: managers.id, name: managers.name, email: managers.email, active: managers.active }).from(managers);
+      return rows.map((r) => ({ id: r.id, name: r.name, email: r.email, active: Boolean(r.active) }));
+    }),
+
   // -- Report theme per client
   getReportThemeAsManager: publicProcedure
     .input(z.object({ token: z.string(), clientId: z.number() }))

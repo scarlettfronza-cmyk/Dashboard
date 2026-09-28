@@ -74,12 +74,12 @@ export default function Home() {
             onMouseLeave={e => (e.currentTarget.style.color = "oklch(0.70 0.010 60)")}>
             Entrar
           </a>
-          <a href="/manager/login?tab=register"
+          <a href="/manager/login"
             className="text-sm font-semibold px-5 py-2 rounded-lg transition-all"
             style={{ background: "#E63946", color: "white" }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#c1121f"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px #E6394640"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#E63946"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
-            Começar grátis
+            Entrar no painel
           </a>
         </div>
       </nav>
@@ -111,12 +111,12 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="/manager/login?tab=register"
+            <a href="/manager/login"
               className="flex items-center gap-2 px-8 py-4 rounded-xl text-base font-bold transition-all"
               style={{ background: "#E63946", color: "white", boxShadow: "0 8px 32px #E6394640" }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#c1121f"; (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#E63946"; (e.currentTarget as HTMLElement).style.transform = "none"; }}>
-              Criar conta grátis
+              Entrar no painel
               <ArrowRight className="w-4 h-4" />
             </a>
             <a href="/manager/login"
@@ -198,14 +198,14 @@ export default function Home() {
             Pronto para impressionar<br />seus clientes?
           </h2>
           <p className="text-base mb-8" style={{ color: "oklch(0.55 0.010 60)" }}>
-            Crie sua conta agora e comece a entregar relatórios profissionais em minutos.
+            Acesso restrito à equipe da Digital Escarlate.
           </p>
-          <a href="/manager/login?tab=register"
+          <a href="/manager/login"
             className="inline-flex items-center gap-2 px-10 py-4 rounded-xl text-base font-bold transition-all"
             style={{ background: "#E63946", color: "white", boxShadow: "0 8px 32px #E6394640" }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#c1121f"; (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#E63946"; (e.currentTarget as HTMLElement).style.transform = "none"; }}>
-            Criar conta grátis
+            Entrar no painel
             <ArrowRight className="w-4 h-4" />
           </a>
         </div>
