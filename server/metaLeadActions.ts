@@ -16,10 +16,16 @@ export type MetaAction = { action_type: string; value: string };
 export const MSG_ACTION = "onsite_conversion.messaging_conversation_started_7d";
 
 /**
- * Lead de formulário. `leadgen.other` cobre o formulário instantâneo do Meta e
- * `offsite_conversion.fb_pixel_lead` o formulário em site próprio, via pixel.
+ * Lead de formulário instantâneo (dentro do Facebook/Instagram). O Meta
+ * devolve o mesmo lead sob mais de um nome conforme a versão da API
+ * (`leadgen.other`, `leadgen_grouped`, `onsite_conversion.lead_grouped`);
+ * por isso entre eles vale o MAIOR, nunca a soma.
  */
-export const FORM_ACTIONS = ["leadgen.other", "offsite_conversion.fb_pixel_lead"] as const;
+export const ONFB_FORM_ACTIONS = ["leadgen.other", "leadgen_grouped", "onsite_conversion.lead_grouped"] as const;
+/** Lead de formulário em site próprio, via pixel. Soma com o instantâneo. */
+export const PIXEL_LEAD_ACTION = "offsite_conversion.fb_pixel_lead";
+/** Todos os tipos de formulário, para buscar o custo informado pelo Meta. */
+export const FORM_ACTIONS = [...ONFB_FORM_ACTIONS, PIXEL_LEAD_ACTION] as const;
 
 /**
  * Tipo agregado do Meta, que já soma os específicos. Só é usado quando nenhum
@@ -38,7 +44,8 @@ function valueOf(actions: MetaAction[] | undefined, type: string) {
 
 /** Leads de formulário da campanha, sem dupla contagem com o tipo agregado. */
 export function formLeadsFrom(actions: MetaAction[] | undefined): number {
-  const especificos = FORM_ACTIONS.reduce((sum, t) => sum + valueOf(actions, t), 0);
+  const instantaneo = Math.max(...ONFB_FORM_ACTIONS.map((t) => valueOf(actions, t)));
+  const especificos = instantaneo + valueOf(actions, PIXEL_LEAD_ACTION);
   if (especificos > 0) return especificos;
   return valueOf(actions, FORM_FALLBACK_ACTION);
 }

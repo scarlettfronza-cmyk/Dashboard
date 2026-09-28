@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import {
+  PIXEL_LEAD_ACTION, describe, expect, it } from "vitest";
 import {
   formLeadsFrom, messageLeadsFrom, reportedCostPer, blendCostPerLead,
   MSG_ACTION, FORM_ACTIONS, FORM_FALLBACK_ACTION,
@@ -7,8 +8,8 @@ import {
 describe("leads de formulário do Meta", () => {
   it("soma formulário instantâneo e lead por pixel", () => {
     const actions = [
-      { action_type: FORM_ACTIONS[0], value: "12" },
-      { action_type: FORM_ACTIONS[1], value: "8" },
+      { action_type: "leadgen.other", value: "12" },
+      { action_type: PIXEL_LEAD_ACTION, value: "8" },
     ];
     expect(formLeadsFrom(actions)).toBe(20);
   });
@@ -19,6 +20,15 @@ describe("leads de formulário do Meta", () => {
       { action_type: FORM_FALLBACK_ACTION, value: "12" },
     ];
     expect(formLeadsFrom(actions)).toBe(12);
+  });
+
+  it("os nomes do formulário instantâneo são o mesmo lead: vale o maior, não a soma", () => {
+    const actions = [
+      { action_type: "leadgen_grouped", value: "55" },
+      { action_type: "onsite_conversion.lead_grouped", value: "55" },
+      { action_type: "lead", value: "55" },
+    ];
+    expect(formLeadsFrom(actions)).toBe(55);
   });
 
   it("usa o tipo agregado quando nenhum específico veio", () => {

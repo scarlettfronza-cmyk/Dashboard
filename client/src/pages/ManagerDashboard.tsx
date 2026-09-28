@@ -28,7 +28,7 @@ import { clearManagerSession } from "@/lib/managerSession";
 interface CampanhasSplit {
   mensagens: { investimento: number; leads: number; custoPorLead: number };
   visitas: { investimento: number; alcance: number; custoPorVisita: number };
-  formulario: { investimento: number; cliques: number; custoPorClique: number };
+  formulario: { investimento: number; cliques: number; custoPorClique: number; leads?: number; custoPorLead?: number };
   video?: { investimento: number; visualizacoes: number; custoPorVisualizacao: number };
   outros?: { investimento: number };
 }
@@ -697,6 +697,9 @@ export default function ManagerDashboard() {
                         const receitaCirurgiasPct = calculateRevenueConcentration(receitaConsultas, cirurgias);
                         const mensagensIniciadas = kpi.campanhas?.mensagens?.leads ?? 0;
                         const custoPorMensagem = kpi.campanhas?.mensagens?.custoPorLead ?? 0;
+                        const leadsFormulario = kpi.campanhas?.formulario?.leads ?? 0;
+                        const custoPorFormulario = kpi.campanhas?.formulario?.custoPorLead ?? 0;
+                        const custoPorLeadGeral = kpi.leads > 0 ? kpi.investimento / kpi.leads : 0;
                         const taxaClique = calculateRate(kpi.cliquesEstimados ?? 0, kpi.alcance ?? 0);
                         const taxaLead = calculateRate(kpi.leads, kpi.cliquesEstimados ?? 0);
                         const taxaConsulta = calculateRate(consultas, kpi.leads);
@@ -722,11 +725,15 @@ export default function ManagerDashboard() {
                           </div>
                           {activeClientCampaignTypes.length > 0 && <div className="flex gap-1.5 flex-wrap">{activeClientCampaignTypes.map((type) => { const info = CAMPAIGN_TYPE_LABELS[type]; return info ? <span key={type} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: info.color, color: "oklch(0.85 0.010 240)", border: "1px solid oklch(0.40 0.010 240 / 0.3)" }}><span>{info.emoji}</span><span>{info.label}</span></span> : null; })}</div>}
 
-                          <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 rounded-xl overflow-hidden border border-border bg-card">
-                            <div className="p-5 border-b sm:border-b-0 sm:border-r border-border"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Investido</p><p className="text-2xl md:text-3xl font-semibold mt-2">{formatCurrency(kpi.investimento)}</p><p className="text-xs text-muted-foreground mt-2">{formatCurrency(kpi.investimento / Math.max(1, Math.ceil((new Date(dateRange.to).getTime() - new Date(dateRange.from).getTime()) / 86400000) + 1))} por dia</p></div>
-                            <div className="p-5 border-b xl:border-b-0 sm:border-r border-border"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Mensagens iniciadas</p><p className="text-2xl md:text-3xl font-semibold mt-2">{formatNumber(mensagensIniciadas)}</p><p className="text-xs text-muted-foreground mt-2">{custoPorMensagem > 0 ? `${formatCurrency(custoPorMensagem)} por mensagem` : "sem campanha de mensagens"}</p></div>
-                            <div className="p-5 border-b sm:border-b-0 sm:border-r border-border"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Receita comercial</p><p className="text-2xl md:text-3xl font-semibold mt-2 text-emerald-300">{formatCurrency(receitaTotal)}</p><p className="text-xs text-muted-foreground mt-2">{kpi.revenueLineage?.label ?? "origem não declarada"}</p></div>
-                            <div className="p-5"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Cada R$ 1 virou</p><p className="text-2xl md:text-3xl font-semibold mt-2" style={{ color: kpi.roas >= 2 ? "#fb7185" : "#fbbf24" }}>{kpi.roas.toFixed(2)}x</p><p className="text-xs text-muted-foreground mt-2">ROAS do período</p></div>
+                          {/* Leads de mensagem e de formulário lado a lado: só "mensagens
+                              iniciadas" escondia os leads das campanhas de formulário. */}
+                          <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-px rounded-xl overflow-hidden border border-border bg-border">
+                            <div className="p-5 bg-card"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Investido</p><p className="text-2xl md:text-3xl font-semibold mt-2">{formatCurrency(kpi.investimento)}</p><p className="text-xs text-muted-foreground mt-2">{formatCurrency(kpi.investimento / Math.max(1, Math.ceil((new Date(dateRange.to).getTime() - new Date(dateRange.from).getTime()) / 86400000) + 1))} por dia</p></div>
+                            <div className="p-5 bg-card"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Leads</p><p className="text-2xl md:text-3xl font-semibold mt-2">{formatNumber(kpi.leads)}</p><p className="text-xs text-muted-foreground mt-2">{custoPorLeadGeral > 0 ? `${formatCurrency(custoPorLeadGeral)} por lead` : "mensagens + formulários"}</p></div>
+                            <div className="p-5 bg-card"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Mensagens iniciadas</p><p className="text-2xl md:text-3xl font-semibold mt-2">{formatNumber(mensagensIniciadas)}</p><p className="text-xs text-muted-foreground mt-2">{custoPorMensagem > 0 ? `${formatCurrency(custoPorMensagem)} por mensagem` : "sem campanha de mensagens"}</p></div>
+                            <div className="p-5 bg-card"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Leads de formulário</p><p className="text-2xl md:text-3xl font-semibold mt-2">{formatNumber(leadsFormulario)}</p><p className="text-xs text-muted-foreground mt-2">{custoPorFormulario > 0 ? `${formatCurrency(custoPorFormulario)} por lead` : "sem campanha de formulário"}</p></div>
+                            <div className="p-5 bg-card"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Receita comercial</p><p className="text-2xl md:text-3xl font-semibold mt-2 text-emerald-300">{formatCurrency(receitaTotal)}</p><p className="text-xs text-muted-foreground mt-2">{kpi.revenueLineage?.label ?? "origem não declarada"}</p></div>
+                            <div className="p-5 bg-card"><p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Cada R$ 1 virou</p><p className="text-2xl md:text-3xl font-semibold mt-2" style={{ color: kpi.roas >= 2 ? "#fb7185" : "#fbbf24" }}>{kpi.roas.toFixed(2)}x</p><p className="text-xs text-muted-foreground mt-2">ROAS do período</p></div>
                           </section>
 
                           <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -776,11 +783,11 @@ export default function ManagerDashboard() {
                             )}
                             {kpi.campanhas.formulario.investimento > 0 && (
                               <div className="shrink-0">
-                                <div className="flex items-center gap-2 mb-2"><span className="text-xs font-semibold text-muted-foreground">🔗 Formulário / Link</span></div>
+                                <div className="flex items-center gap-2 mb-2"><span className="text-xs font-semibold text-muted-foreground">🔗 Formulário</span></div>
                                 <div className="grid grid-cols-3 gap-2">
                                   <KpiCard label="Investimento" value={formatCurrency(kpi.campanhas.formulario.investimento)} icon={DollarSign} gradient="linear-gradient(135deg, #E63946, #c1121f)" />
-                                  <KpiCard label="Cliques" value={formatNumber(kpi.campanhas.formulario.cliques)} icon={MousePointer} />
-                                  {kpi.campanhas.formulario.custoPorClique > 0 ? <KpiCard label="Custo/Clique" value={formatCurrency(kpi.campanhas.formulario.custoPorClique)} icon={Target} /> : <div />}
+                                  <KpiCard label="Leads" value={formatNumber(kpi.campanhas.formulario.leads ?? 0)} icon={Users} />
+                                  {(kpi.campanhas.formulario.custoPorLead ?? 0) > 0 ? <KpiCard label="Custo/Lead" value={formatCurrency(kpi.campanhas.formulario.custoPorLead!)} icon={Target} alert={(kpi.campanhas.formulario.custoPorLead ?? 0) > 100} /> : <KpiCard label="Cliques" value={formatNumber(kpi.campanhas.formulario.cliques)} icon={MousePointer} />}
                                 </div>
                               </div>
                             )}
