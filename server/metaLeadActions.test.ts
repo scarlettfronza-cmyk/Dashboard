@@ -30,6 +30,13 @@ describe("leads de formulário do Meta", () => {
     expect(formLeadsFrom(actions)).toBe(55);
   });
 
+  it("com conversas e só o agregado, não conta as conversas como formulário", () => {
+    expect(formLeadsFrom([
+      { action_type: MSG_ACTION, value: "40" },
+      { action_type: FORM_FALLBACK_ACTION, value: "40" },
+    ])).toBe(0);
+  });
+
   it("usa o tipo agregado quando nenhum específico veio", () => {
     expect(formLeadsFrom([{ action_type: FORM_FALLBACK_ACTION, value: "7" }])).toBe(7);
   });

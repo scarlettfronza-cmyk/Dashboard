@@ -42,11 +42,20 @@ function valueOf(actions: MetaAction[] | undefined, type: string) {
   return num(actions?.find((a) => a.action_type === type)?.value);
 }
 
-/** Leads de formulário da campanha, sem dupla contagem com o tipo agregado. */
+/**
+ * Leads de formulário da campanha, sem dupla contagem com o tipo agregado.
+ *
+ * O agregado `lead` do Meta pode incluir leads vindos de conversa (campanhas
+ * de mensagem otimizadas para lead). Por isso ele só vale como formulário
+ * quando a campanha não teve conversa nenhuma; com conversa e sem tipo
+ * específico de formulário, não dá para separar, e formulário fica em zero
+ * em vez de repetir as conversas como formulário.
+ */
 export function formLeadsFrom(actions: MetaAction[] | undefined): number {
   const instantaneo = Math.max(...ONFB_FORM_ACTIONS.map((t) => valueOf(actions, t)));
   const especificos = instantaneo + valueOf(actions, PIXEL_LEAD_ACTION);
   if (especificos > 0) return especificos;
+  if (messageLeadsFrom(actions) > 0) return 0;
   return valueOf(actions, FORM_FALLBACK_ACTION);
 }
 
