@@ -1,8 +1,7 @@
-import {
-  PIXEL_LEAD_ACTION, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   formLeadsFrom, messageLeadsFrom, reportedCostPer, blendCostPerLead,
-  MSG_ACTION, FORM_ACTIONS, FORM_FALLBACK_ACTION,
+  MSG_ACTION, FORM_ACTIONS, FORM_FALLBACK_ACTION, PIXEL_LEAD_ACTION,
 } from "./metaLeadActions";
 
 describe("leads de formulário do Meta", () => {
