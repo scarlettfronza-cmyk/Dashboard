@@ -8,6 +8,7 @@ import { registerMetaOAuthRoutes } from "../metaOAuth";
 import { registerRestoreRoute } from "../restoreRoute";
 import { registerRecoveryRoute } from "../recoveryRoute";
 import { garantirTabelas } from "../schemaGuard";
+import { limparOrfaos } from "../manutencaoBase";
 import { registerScheduledRoutes } from "../scheduledRoutes";
 import { startMondayCron } from "../mondayCron";
 import { startBudgetCron } from "../budgetCron";
@@ -38,6 +39,8 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   // Backup restaurado pode não ter todas as tabelas que o código espera.
   await garantirTabelas();
+  // Registros presos a clientes que já não existem (herança do backup).
+  await limparOrfaos();
 
   const app = express();
   const server = createServer(app);

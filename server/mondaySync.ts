@@ -6,6 +6,7 @@
  */
 import { getDb } from "./db";
 import { salesRecords, clients, integrations } from "../drizzle/schema";
+import { chaveDeduplicacao } from "./registrosVendas";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { getSystemSetting } from "./_core/systemRouter";
@@ -563,12 +564,11 @@ export async function syncMondayBoard(
     uploadBatch: batch,
   }));
 
-  // Deduplicate: if same patient name appears multiple times with same conversionDate month, keep only the one with the highest closedValue (or most recent lastUpdated)
+  // Deduplicação: com data de conversão, um por paciente por mês (fica o de
+  // maior valor); sem ela, linhas idênticas viram uma só. Ver registrosVendas.ts.
   const deduped = new Map<string, typeof records[0]>();
   for (const rec of records) {
-    const monthKey = rec.conversionDate
-      ? `${rec.patientName.toLowerCase().trim()}__${rec.conversionDate.getFullYear()}-${rec.conversionDate.getMonth()}`
-      : `${rec.patientName.toLowerCase().trim()}__no-date-${Math.random()}`;
+    const monthKey = chaveDeduplicacao(rec);
     const existing = deduped.get(monthKey);
     if (!existing) {
       deduped.set(monthKey, rec);
