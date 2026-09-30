@@ -196,20 +196,16 @@ export function detectColumnMap(columns: BoardColumn[]): ColumnMap {
       map.surgeryValueId = col.id;
       if (map.format !== "C") map.format = "B";
     }
-    // Detect consultDate column with priority system:
-    // Priority 3 (highest): "Data de conversao" — lead converted/scheduled in this period
-    // Priority 2: specific consult/evaluation date columns
-    // Priority 1 (lowest): generic "data" column (Monday default date column)
+    // Coluna da data da consulta, por prioridade:
+    //   3 (maior): a coluna que diz "consulta"/"avaliação" no nome — é a data em
+    //     que a pessoa foi atendida, e é isso que o relatório chama de consulta.
+    //   2: "Data de conversão" — quando o lead agendou. Só vale se o quadro não
+    //     tem coluna de consulta (antes ela vencia, e as consultas caíam no dia
+    //     do agendamento em vez do dia do atendimento).
+    //   1: "Data" genérica do Monday.
     {
       let consultPriority = 0;
       if (
-        title === "data de conversao" ||
-        title === "data de conversão" ||
-        title === "data conversao" ||
-        title === "data conversão"
-      ) {
-        consultPriority = 3; // "Data Conversao" = data em que o lead agendou/converteu = consulta
-      } else if (
         title === "data da consulta" ||
         title === "data consulta" ||
         title === "data de consulta" ||
@@ -217,6 +213,13 @@ export function detectColumnMap(columns: BoardColumn[]): ColumnMap {
         title === "data da avaliacao" ||
         title === "data avaliação" ||
         title === "data avaliacao"
+      ) {
+        consultPriority = 3;
+      } else if (
+        title === "data de conversao" ||
+        title === "data de conversão" ||
+        title === "data conversao" ||
+        title === "data conversão"
       ) {
         consultPriority = 2;
       } else if (
@@ -427,13 +430,18 @@ export async function obterTokenMonday(clientId: number): Promise<string | null>
 export type ConfigMonday = {
   colunaDataFechamentoId?: string | null;
   colunaValorVendaId?: string | null;
+  colunaDataConsultaId?: string | null;
+  colunaValorConsultaId?: string | null;
 };
 
 export async function lerConfigMonday(clientId: number): Promise<ConfigMonday> {
   const { getIntegration } = await import("./db");
   const row = await getIntegration(clientId, "monday");
   const cfg = (row?.extraConfig ?? {}) as ConfigMonday;
-  return { colunaDataFechamentoId: cfg.colunaDataFechamentoId ?? null, colunaValorVendaId: cfg.colunaValorVendaId ?? null };
+  return {
+    colunaDataFechamentoId: cfg.colunaDataFechamentoId ?? null, colunaValorVendaId: cfg.colunaValorVendaId ?? null,
+    colunaDataConsultaId: cfg.colunaDataConsultaId ?? null, colunaValorConsultaId: cfg.colunaValorConsultaId ?? null,
+  };
 }
 
 export async function salvarConfigMonday(clientId: number, cfg: ConfigMonday): Promise<void> {
@@ -488,6 +496,8 @@ export async function syncMondayBoard(
   const cfg = await lerConfigMonday(clientId);
   if (cfg.colunaDataFechamentoId) { colMap.conversionDateId = cfg.colunaDataFechamentoId; colMap.conversionDatePriority = 99; }
   if (cfg.colunaValorVendaId) { colMap.closedValueId = cfg.colunaValorVendaId; colMap.format = "C"; }
+  if (cfg.colunaDataConsultaId) { colMap.consultDateId = cfg.colunaDataConsultaId; colMap.consultDatePriority = 99; }
+  if (cfg.colunaValorConsultaId) colMap.consultValueId = cfg.colunaValorConsultaId;
   console.log(`[Monday Sync] Detected format: ${colMap.format} | conversionDateId: ${colMap.conversionDateId ?? 'NONE'} (priority: ${colMap.conversionDatePriority ?? 0}) | consultDateId: ${colMap.consultDateId ?? 'NONE'}`);
   // Debug: always log all date columns to help diagnose missing dates
   const dateCols = columns.filter(c => c.type === 'date');

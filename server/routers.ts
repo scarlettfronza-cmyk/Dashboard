@@ -1366,11 +1366,15 @@ const mondayRouter = router({
     .input(z.object({
       clientId: z.number(), managerToken: z.string(),
       colunaDataFechamentoId: z.string().nullable(), colunaValorVendaId: z.string().nullable(),
+      colunaDataConsultaId: z.string().nullable().optional(), colunaValorConsultaId: z.string().nullable().optional(),
     }))
     .mutation(async ({ input }) => {
       await verifyManagerOwnsClient(input.managerToken, input.clientId);
       const { salvarConfigMonday } = await import("./mondaySync");
-      await salvarConfigMonday(input.clientId, { colunaDataFechamentoId: input.colunaDataFechamentoId, colunaValorVendaId: input.colunaValorVendaId });
+      await salvarConfigMonday(input.clientId, {
+        colunaDataFechamentoId: input.colunaDataFechamentoId, colunaValorVendaId: input.colunaValorVendaId,
+        colunaDataConsultaId: input.colunaDataConsultaId ?? null, colunaValorConsultaId: input.colunaValorConsultaId ?? null,
+      });
       return { success: true };
     }),
 

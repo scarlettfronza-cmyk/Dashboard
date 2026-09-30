@@ -382,12 +382,16 @@ export default function ManagerClientSettings() {
   const [colunasMonday, setColunasMonday] = useState<Array<{ id: string; title: string; type: string }> | null>(null);
   const [colDataFechamento, setColDataFechamento] = useState<string>("");
   const [colValorVenda, setColValorVenda] = useState<string>("");
+  const [colDataConsulta, setColDataConsulta] = useState<string>("");
+  const [colValorConsulta, setColValorConsulta] = useState<string>("");
   const listarColunas = trpc.monday.listarColunasAsManager.useMutation({
     onSuccess: (r) => {
       setColunasMonday(r.colunas);
       const cfg = mondayStatus.data?.config;
       setColDataFechamento(cfg?.colunaDataFechamentoId ?? r.detectado.dataFechamentoId ?? "");
       setColValorVenda(cfg?.colunaValorVendaId ?? r.detectado.valorVendaId ?? "");
+      setColDataConsulta(cfg?.colunaDataConsultaId ?? r.detectado.dataConsultaId ?? "");
+      setColValorConsulta(cfg?.colunaValorConsultaId ?? r.detectado.valorConsultaId ?? "");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -892,12 +896,28 @@ export default function ManagerClientSettings() {
                       {colunasMonday.filter((c) => c.type === "numbers" || c.type === "numeric").map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                     </select>
                   </label>
+                  <label className="flex flex-col gap-1 text-xs" style={{ color: "oklch(0.65 0.010 240)" }}>
+                    Coluna da data da consulta (atendimento)
+                    <select value={colDataConsulta} onChange={(e) => setColDataConsulta(e.target.value)}
+                      className="text-sm rounded-md px-2 py-2 outline-none" style={{ background: "oklch(0.16 0.012 255)", border: "1px solid oklch(0.26 0.012 255)", color: "#fff" }}>
+                      <option value="">— automático (pelo nome) —</option>
+                      {colunasMonday.filter((c) => c.type === "date").map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs" style={{ color: "oklch(0.65 0.010 240)" }}>
+                    Coluna do valor da consulta
+                    <select value={colValorConsulta} onChange={(e) => setColValorConsulta(e.target.value)}
+                      className="text-sm rounded-md px-2 py-2 outline-none" style={{ background: "oklch(0.16 0.012 255)", border: "1px solid oklch(0.26 0.012 255)", color: "#fff" }}>
+                      <option value="">— automático (pelo nome) —</option>
+                      {colunasMonday.filter((c) => c.type === "numbers" || c.type === "numeric").map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                    </select>
+                  </label>
                   <div className="sm:col-span-2 flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-[11px]" style={{ color: "oklch(0.45 0.010 240)" }}>
                       {colunasMonday.filter((c) => c.type === "date").length === 0 && "Este quadro não tem coluna de data — crie uma \"Data de fechamento\" no Monday para as vendas contarem."}
                     </span>
                     <ActionBtn color="oklch(0.72 0.18 145)" disabled={salvarColunas.isPending}
-                      onClick={() => salvarColunas.mutate({ clientId, managerToken: token!, colunaDataFechamentoId: colDataFechamento || null, colunaValorVendaId: colValorVenda || null })}>
+                      onClick={() => salvarColunas.mutate({ clientId, managerToken: token!, colunaDataFechamentoId: colDataFechamento || null, colunaValorVendaId: colValorVenda || null, colunaDataConsultaId: colDataConsulta || null, colunaValorConsultaId: colValorConsulta || null })}>
                       {salvarColunas.isPending ? "Salvando..." : "Salvar e sincronizar"}
                     </ActionBtn>
                   </div>
