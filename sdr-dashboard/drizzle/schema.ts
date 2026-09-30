@@ -11,7 +11,7 @@ export const users = mysqlTable("users", {
    * Use this for relations between tables.
    */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
+  /** Identificador único. Contas locais usam "local:<id>"; as antigas vieram do Manus OAuth. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   /**
@@ -65,6 +65,8 @@ export const clients = mysqlTable("clients", {
   boardId: varchar("boardId", { length: 1024 }).notNull(),
   clientToken: varchar("clientToken", { length: 64 }).notNull().unique(),
   isActive: boolean("isActive").default(true).notNull(),
+  /** Grupo do WhatsApp da clínica ("1203...@g.us"), para o envio do relatório pela Z-API. */
+  whatsappGroupId: varchar("whatsappGroupId", { length: 128 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

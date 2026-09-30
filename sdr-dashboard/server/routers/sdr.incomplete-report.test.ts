@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { fetchBoardsMock, invokeLLMMock, lerSnapshotsMock } = vi.hoisted(() => ({
+const { fetchBoardsMock, lerSnapshotsMock } = vi.hoisted(() => ({
   fetchBoardsMock: vi.fn(),
-  invokeLLMMock: vi.fn(),
   lerSnapshotsMock: vi.fn(),
 }));
 
@@ -30,8 +29,6 @@ vi.mock("../monday", () => ({
   invalidateCache: vi.fn(),
 }));
 
-vi.mock("../_core/llm", () => ({ invokeLLM: invokeLLMMock }));
-
 vi.mock("../sync", () => ({
   lerSnapshots: lerSnapshotsMock,
   sincronizarCliente: vi.fn(),
@@ -55,6 +52,5 @@ describe("sdr.generateAnalysis", () => {
     } as any);
 
     await expect(caller.generateAnalysis({ clientId: 1, range: null })).rejects.toThrow(/números incompletos/i);
-    expect(invokeLLMMock).not.toHaveBeenCalled();
   });
 });

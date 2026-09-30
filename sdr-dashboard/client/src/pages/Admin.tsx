@@ -8,7 +8,7 @@
 import React, { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Search, RefreshCw, Link2, Users, ShieldCheck, Trash2, Loader2, Check } from "lucide-react";
+import { Search, RefreshCw, Link2, Users, ShieldCheck, Trash2, Loader2, Check, KeyRound } from "lucide-react";
 
 /**
  * Deduz o nome do cliente a partir dos nomes dos boards marcados.
@@ -168,7 +168,7 @@ export default function Admin() {
             ) : pessoas.isLoading ? (
               <Carregando />
             ) : sdrs.length === 0 ? (
-              <Vazio texto="Nenhuma SDR ainda. Peça para criarem a conta no site." />
+              <Vazio texto="Nenhuma SDR ainda. Crie o login dela no quadro Logins." />
             ) : (
               <div className="space-y-2">
                 {sdrs.map(p => {
@@ -205,6 +205,8 @@ export default function Admin() {
               </div>
             )}
           </Cartao>
+
+          <Logins pessoas={pessoas.data ?? []} onMudou={invalidarTudo} />
 
           {semPerfil.length > 0 && (
             <Cartao titulo="Contas novas" contador={semPerfil.length}>
@@ -475,6 +477,101 @@ export default function Admin() {
         </div>
       </div>
     </div>
+  );
+}
+
+type Pessoa = { userId: number; name: string; email: string | null; role: "user" | "admin"; hasPassword: boolean };
+
+/**
+ * Logins: a gestora cria a conta da SDR (já com perfil pronto para receber
+ * clientes) e define senha nova para quem esqueceu ou para contas antigas do
+ * Manus, que não tinham senha.
+ */
+function Logins({ pessoas, onMudou }: { pessoas: Pessoa[]; onMudou: () => void }) {
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+
+  const criar = trpc.admin.createSdrAccount.useMutation({
+    onSuccess: c => {
+      toast.success(`Login de ${c.name} criado. Passe para ela o e-mail e a senha.`);
+      setNome("");
+      setEmail("");
+      setSenha("");
+      onMudou();
+    },
+    onError: e => toast.error(e.message),
+  });
+  const definirSenha = trpc.admin.setPassword.useMutation({
+    onSuccess: () => {
+      toast.success("Senha definida.");
+      onMudou();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const trocarSenha = (p: Pessoa) => {
+    const nova = window.prompt(`Nova senha para ${p.name} (mínimo de 8 caracteres):`);
+    if (nova) definirSenha.mutate({ userId: p.userId, password: nova });
+  };
+
+  const campo = "w-full px-3 py-2 rounded-lg text-sm outline-none";
+  const estiloCampo = { background: "var(--card)", border: "1px solid var(--border)", color: "var(--foreground)" };
+
+  return (
+    <Cartao titulo="Logins" icone={<KeyRound size={17} />} contador={pessoas.length}>
+      <form
+        className="space-y-2"
+        onSubmit={e => {
+          e.preventDefault();
+          criar.mutate({ name: nome, email, password: senha });
+        }}
+      >
+        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Criar login de SDR</p>
+        <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome" className={campo} style={estiloCampo} />
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="E-mail" type="email" className={campo} style={estiloCampo} />
+        <input
+          value={senha}
+          onChange={e => setSenha(e.target.value)}
+          placeholder="Senha inicial (mínimo de 8 caracteres)"
+          className={campo}
+          style={estiloCampo}
+        />
+        <button
+          type="submit"
+          disabled={criar.isPending || nome.trim().length < 2 || !email.includes("@") || senha.length < 8}
+          className="w-full text-sm px-3 py-2 rounded-lg font-medium disabled:opacity-40"
+          style={{ background: "var(--primary)", color: "white" }}
+        >
+          {criar.isPending ? "Criando..." : "Criar login"}
+        </button>
+      </form>
+
+      {pessoas.length > 0 && (
+        <div className="space-y-1.5 mt-4">
+          {pessoas.map(p => (
+            <div key={p.userId} className="flex items-center justify-between gap-2 text-sm">
+              <span className="truncate" style={{ color: "var(--foreground)" }}>
+                {p.name}
+                <span style={{ color: "var(--muted-foreground)" }}>
+                  {" "}· {p.email ?? "sem e-mail"}
+                  {!p.hasPassword && " · sem senha"}
+                </span>
+              </span>
+              <button
+                onClick={() => trocarSenha(p)}
+                disabled={definirSenha.isPending || !p.email}
+                className="text-sm px-2.5 py-1 rounded-lg flex-shrink-0 disabled:opacity-40"
+                style={{ background: "var(--secondary)", color: "var(--muted-foreground)", border: "1px solid var(--border)" }}
+                title={p.email ? "Definir nova senha" : "Sem e-mail: use /recuperar"}
+              >
+                {p.hasPassword ? "Trocar senha" : "Definir senha"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Cartao>
   );
 }
 

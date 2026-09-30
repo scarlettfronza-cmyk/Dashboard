@@ -1,5 +1,5 @@
 /**
- * SDR router — perfis, clientes, dados do Monday e relatórios com IA.
+ * SDR router — perfis, clientes, dados do Monday e relatórios.
  *
  * Mudanças estruturais em relação à versão anterior:
  *  1. `sdrProcedure` garante o perfil de SDR uma única vez, para todas as
@@ -18,7 +18,10 @@ import { eq, and, desc, inArray } from "drizzle-orm";
 import { getDb } from "../db";
 import { sdrs, clients, aiReports, chatMessages } from "../../drizzle/schema";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
-import { invokeLLM, type Message } from "../_core/llm";
+import { montarTextoRelatorio } from "../../shared/relatorioTexto";
+import { linkPortal, montarMensagemWhatsApp } from "../../shared/whatsappRelatorio";
+import { checkStatus, listGroups, sendGroupLink, sendGroupMessage } from "../zapApi";
+import { textosOg } from "../ogPortal";
 import { invalidateCache, type BoardRef } from "../monday";
 import { lerSnapshots, sincronizarCliente } from "../sync";
 import { ENV } from "../_core/env";
@@ -26,7 +29,6 @@ import {
   computeMetrics,
   compareMetrics,
   previousRange,
-  metricsSummaryForLLM,
   buildReportSnapshot,
   parseReportSnapshot,
   formatRangeBR,
@@ -258,45 +260,23 @@ export const sdrRouter = router({
       const comparison = range
         ? compareMetrics(metrics, computeMetrics(leads, previousRange(range), snap.atendimentos))
         : undefined;
-      const summary = metricsSummaryForLLM(client.name, range, metrics, comparison);
       // Snapshot completo: é dele que saem os gráficos do portal do cliente.
       const snapshot = buildReportSnapshot(client.name, range, metrics, comparison);
 
-      const systemPrompt = `Você é uma SDR especialista em gestão comercial para clínicas médicas e estéticas no Brasil.
-Escreva um relatório de período como mensagem profissional de WhatsApp: texto corrido, parágrafos curtos, tom acolhedor e objetivo.
-
-REGRAS INEGOCIÁVEIS SOBRE OS NÚMEROS:
-- Use exclusivamente os valores do JSON fornecido. Nunca calcule, estime ou invente nenhum número.
-- Se um dado não estiver no JSON, não o mencione.
-- Não cite pacientes pelo nome. Fale sempre de forma agregada.
-
-FORMATO:
-- Comece com "Relatório [período] – [nome do cliente]".
-- Um parágrafo sobre volume e qualidade dos leads, um sobre resultados (agendamentos, comparecimentos, fechamentos), um sobre contexto ou pontos de atenção e um sobre perspectivas.
-- Encerre com uma frase curta de expectativa positiva.
-- Sem markdown: nada de asteriscos, hashtags, títulos em negrito ou bullet points. Apenas parágrafos.`;
-
-      const userMessage = [
-        `Dados do período (JSON):\n${JSON.stringify(summary, null, 2)}`,
-        input.observacoes ? `\n\nContexto informado pela SDR, incorpore com naturalidade:\n${input.observacoes}` : "",
-      ].join("");
-
-      const response = await invokeLLM({
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
+      // Texto montado direto dos números, sem IA: nenhum valor é reescrito.
+      const content = montarTextoRelatorio({
+        clienteNome: client.name,
+        range,
+        metrics,
+        comparison,
+        observacoes: input.observacoes,
       });
-
-      const raw = response.choices?.[0]?.message?.content;
-      const content = typeof raw === "string" ? raw : JSON.stringify(raw ?? "");
-      if (!content) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "A IA não retornou conteúdo." });
 
       const periodLabel = range ? formatRangeBR(range) : "Todo o período";
       await ctx.db.insert(aiReports).values({
         sdrId: ctx.sdr.id,
         clientId: client.id,
-        title: `Relatório ${periodLabel} — ${client.name}`,
+        title: `Relatório ${periodLabel} · ${client.name}`,
         content,
         period: periodLabel,
         periodStart: range?.from ?? null,
@@ -316,45 +296,24 @@ FORMATO:
     }),
 
   /**
-   * Mini-chat de ajuste. Diferente do `chat` genérico anterior: devolve o
-   * relatório REVISADO e atualiza a mesma linha, em vez de responder no chat e
-   * deixar o texto original intocado.
+   * A SDR ajusta o texto do relatório à mão. Os números do portal continuam
+   * vindo do `metricsSnapshot`, que o texto não altera.
    */
-  reviseReport: sdrProcedure
-    .input(z.object({ reportId: z.number().int().positive(), instruction: z.string().min(1).max(2000) }))
+  editReport: sdrProcedure
+    .input(z.object({ reportId: z.number().int().positive(), content: z.string().trim().min(1).max(6000) }))
     .mutation(async ({ ctx, input }) => {
       const [report] = await ctx.db.select().from(aiReports).where(eq(aiReports.id, input.reportId)).limit(1);
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Relatório não encontrado." });
       await requireClient(ctx, report.clientId);
 
-      const messages: Message[] = [
-        {
-          role: "system",
-          content: `Você revisa relatórios comerciais para clínicas. Aplique APENAS o ajuste pedido e devolva o relatório completo revisado, sem comentários, sem markdown e sem introdução.
-Os números abaixo são os únicos válidos. Não altere nenhum deles e não introduza números novos.
-${JSON.stringify(parseReportSnapshot(report.metricsSnapshot)?.kpis ?? {})}`,
-        },
-        { role: "user", content: `Relatório atual:\n${report.content}\n\nAjuste solicitado: ${input.instruction}` },
-      ];
-
-      const response = await invokeLLM({ messages });
-      const raw = response.choices?.[0]?.message?.content;
-      const revised = typeof raw === "string" ? raw : JSON.stringify(raw ?? "");
-      if (!revised) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "A IA não retornou conteúdo." });
-
-      // Revisar um relatório já publicado o devolve para rascunho: o cliente
+      // Editar um relatório já publicado o devolve para rascunho: o cliente
       // não deve ver o texto mudando embaixo dele sem uma nova publicação.
       await ctx.db
         .update(aiReports)
-        .set({ content: revised, status: "draft", publishedAt: null })
+        .set({ content: input.content, status: "draft", publishedAt: null })
         .where(eq(aiReports.id, report.id));
 
-      await ctx.db.insert(chatMessages).values([
-        { sdrId: ctx.sdr.id, clientId: report.clientId, role: "user" as const, content: input.instruction },
-        { sdrId: ctx.sdr.id, clientId: report.clientId, role: "assistant" as const, content: revised },
-      ]);
-
-      return { content: revised };
+      return { content: input.content };
     }),
 
   setReportStatus: sdrProcedure
@@ -424,13 +383,80 @@ ${JSON.stringify(parseReportSnapshot(report.metricsSnapshot)?.kpis ?? {})}`,
       return { clientToken: token };
     }),
 
-  /** URL pública do portal, montada com o domínio configurado no servidor. */
+  /**
+   * URL pública do portal. Usa o domínio configurado no servidor; sem ele,
+   * o endereço de onde a SDR está acessando (o mesmo app).
+   */
   portalUrl: sdrProcedure
-    .input(z.object({ clientId: z.number().int().positive() }))
+    .input(z.object({ clientId: z.number().int().positive(), origin: z.string().url().optional() }))
     .query(async ({ ctx, input }) => {
       const client = await requireClient(ctx, input.clientId);
-      const base = ENV.publicAppUrl;
-      return { url: base ? `${base}/portal/${client.clientToken}` : null, token: client.clientToken };
+      const base = ENV.publicAppUrl || input.origin;
+      return { url: base ? linkPortal(base, client.clientToken) : null, token: client.clientToken };
+    }),
+
+  // ─── WhatsApp ──────────────────────────────────────────────────────────────
+
+  /** Z-API configurada no servidor e celular conectado? */
+  whatsappStatus: sdrProcedure.query(() => checkStatus()),
+
+  /** Grupos que o número da Z-API participa, para escolher o da clínica. */
+  whatsappGroups: sdrProcedure.query(() => listGroups()),
+
+  setWhatsappGroup: sdrProcedure
+    .input(z.object({ clientId: z.number().int().positive(), groupId: z.string().trim().max(128).nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const client = await requireClient(ctx, input.clientId);
+      await ctx.db
+        .update(clients)
+        .set({ whatsappGroupId: input.groupId || null })
+        .where(eq(clients.id, client.id));
+      return { ok: true };
+    }),
+
+  /**
+   * Publica o relatório com o texto final e envia no grupo da clínica, com o
+   * link do portal. O texto enviado é o mesmo que fica no portal.
+   */
+  sendReportWhatsApp: sdrProcedure
+    .input(
+      z.object({
+        reportId: z.number().int().positive(),
+        content: z.string().trim().min(1).max(6000),
+        origin: z.string().url().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [report] = await ctx.db.select().from(aiReports).where(eq(aiReports.id, input.reportId)).limit(1);
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Relatório não encontrado." });
+      const client = await requireClient(ctx, report.clientId);
+      if (!client.whatsappGroupId) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Escolha o grupo do WhatsApp desta clínica antes de enviar." });
+      }
+
+      const base = ENV.publicAppUrl || input.origin;
+      const link = base ? linkPortal(base, client.clientToken) : null;
+      const mensagem = montarMensagemWhatsApp(input.content, link);
+
+      // Com cartão de link (título e imagem). Se a Z-API recusar, vai texto simples.
+      let enviado = link
+        ? await sendGroupLink(client.whatsappGroupId, mensagem, {
+            url: link,
+            ...textosOg(client.name),
+            image: `${base!.replace(/\/+$/, "")}/og-relatorio.png`,
+          })
+        : { success: false as boolean, error: undefined as string | undefined };
+      if (!enviado.success) enviado = await sendGroupMessage(client.whatsappGroupId, mensagem);
+      if (!enviado.success) {
+        throw new TRPCError({ code: "BAD_GATEWAY", message: enviado.error || "O WhatsApp não aceitou a mensagem." });
+      }
+
+      await ctx.db
+        .update(aiReports)
+        .set({ content: input.content, status: "published", publishedAt: new Date() })
+        .where(eq(aiReports.id, report.id));
+
+      return { ok: true, mensagem };
     }),
 
   chatHistory: sdrProcedure

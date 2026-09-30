@@ -1,67 +1,33 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
-import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
-import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
-import { sincronizar } from "../sync";
+import { startMondayCron } from "../mondayCron";
+import { registerOgRoute } from "../ogPortal";
+import { registerRecoveryRoute } from "../recoveryRoute";
+import { registerRestoreRoute } from "../restoreRoute";
+import { garantirEsquema } from "../schemaGuard";
 import { createContext } from "./context";
-import { sdk } from "./sdk";
-import { serveStatic, setupVite } from "./vite";
-
-function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise(resolve => {
-    const server = net.createServer();
-    server.listen(port, () => {
-      server.close(() => resolve(true));
-    });
-    server.on("error", () => resolve(false));
-  });
-}
-
-async function findAvailablePort(startPort: number = 3000): Promise<number> {
-  for (let port = startPort; port < startPort + 20; port++) {
-    if (await isPortAvailable(port)) {
-      return port;
-    }
-  }
-  throw new Error(`No available port found starting from ${startPort}`);
-}
+import { serveStatic, setupVite, staticDir } from "./vite";
 
 async function startServer() {
+  // Cria o que faltar no banco antes de aceitar requisições. Nunca derruba o
+  // servidor: sem banco, as telas de importação e recuperação ainda abrem.
+  await garantirEsquema();
+
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
+  // Railway entrega HTTPS por um proxy; sem isto o cookie de sessão não sai
+  // com `secure` e o navegador descarta o login.
+  app.set("trust proxy", 1);
+  // Rotas de importação e recuperação antes do parser global: a importação
+  // aceita um arquivo maior e as duas só existem com a senha no ambiente.
+  registerRestoreRoute(app);
+  registerRecoveryRoute(app);
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  registerStorageProxy(app);
-  registerOAuthRoutes(app);
-  app.post("/api/scheduled/sync-monday", async (req, res) => {
-    try {
-      const user = await sdk.authenticateRequest(req as any);
-      if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
-
-      // O callback tem orçamento curto. Atualiza uma fatia rotativa de boards
-      // por rodada e deixa o próximo disparo avançar para os demais.
-      const result = await sincronizar(undefined, {
-        limite: 1,
-        maxAttempts: 1,
-        requestTimeoutMs: 8_000,
-        boardTimeoutMs: 20_000,
-      });
-      return res.json({ ...result, ok: result.falhas === 0, taskUid: user.taskUid });
-    } catch (error) {
-      console.error("[sync] falha no job periódico:", error);
-      return res.status(500).json({
-        error: error instanceof Error ? error.message : String(error),
-        timestamp: new Date().toISOString(),
-        context: { path: "/api/scheduled/sync-monday" },
-      });
-    }
-  });
-  // tRPC API
+  app.get("/api/saude", (_req, res) => res.json({ ok: true }));
   app.use(
     "/api/trpc",
     createExpressMiddleware({
@@ -73,19 +39,20 @@ async function startServer() {
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
+    registerOgRoute(app, staticDir());
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
-
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
-  }
-
+  // Em produção a porta é a que a hospedagem mandar; se estiver ocupada, é
+  // melhor falhar visivelmente do que subir numa porta que ninguém acessa.
+  const port = parseInt(process.env.PORT || "3000");
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    startMondayCron();
   });
 }
 
-startServer().catch(console.error);
+startServer().catch(error => {
+  console.error(error);
+  process.exit(1);
+});

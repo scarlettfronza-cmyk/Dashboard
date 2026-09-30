@@ -8,6 +8,8 @@ import ClientPortal from "./pages/ClientPortal";
 import Entrar from "./pages/Entrar";
 import Admin from "./pages/Admin";
 import Home from "./pages/Home";
+import ImportarDados from "./pages/ImportarDados";
+import RecuperarAcesso from "./pages/RecuperarAcesso";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -17,6 +19,8 @@ function Router() {
       <Route path={"/portal/:token"} component={ClientPortal} />
       <Route path={"/entrar"} component={Entrar} />
       <Route path={"/admin"} component={Admin} />
+      <Route path={"/importar"} component={ImportarDados} />
+      <Route path={"/recuperar"} component={RecuperarAcesso} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

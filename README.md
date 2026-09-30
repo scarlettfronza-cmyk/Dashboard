@@ -11,7 +11,8 @@ ambiente, restauração do backup e reconexão do Meta fora da plataforma Manus.
 A documentação técnica completa está em [`handoff/HANDOFF_TECNICO.md`](handoff/HANDOFF_TECNICO.md).
 
 O **SDR Dashboard** (Monday.com, carteira das SDRs) é um app separado, em
-[`sdr-dashboard/`](sdr-dashboard/), com o próprio `package.json`. O handoff dele está em
+[`sdr-dashboard/`](sdr-dashboard/), com o próprio `package.json` e deploy próprio na Railway:
+veja [`sdr-dashboard/DEPLOY.md`](sdr-dashboard/DEPLOY.md). O handoff do Manus está em
 [`sdr-dashboard/docs/handoff-tecnico-2026-09-30.pdf`](sdr-dashboard/docs/handoff-tecnico-2026-09-30.pdf).
 
 ## Experiências

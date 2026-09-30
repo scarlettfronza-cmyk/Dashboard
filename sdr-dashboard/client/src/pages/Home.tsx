@@ -23,7 +23,7 @@ import Overview from "@/pages/Overview";
 import Agendamentos from "@/pages/Agendamentos";
 import Atendimentos from "@/pages/Atendimentos";
 import GestaoVendas from "@/pages/GestaoVendas";
-import AnaliseIA from "@/pages/AnaliseIA";
+import Relatorio from "@/pages/Relatorio";
 import { useClientData, toDashboardStats } from "@/hooks/useMondayData";
 import { filterLeadsByDate, resolvePreset, todayInTz, type DateRange, type Preset } from "@shared/metrics";
 
@@ -157,7 +157,7 @@ export default function Home() {
     agendamentos: "Agendamentos",
     atendimentos: "Atendimentos",
     gestao: "Gestão de Vendas",
-    analise: "Análise com IA",
+    analise: "Relatório",
   };
 
   return (
@@ -432,7 +432,7 @@ export default function Home() {
             <GestaoVendas stats={stats} leads={leads} range={range} />
           )}
           {activeTab === "analise" && (
-            <AnaliseIA
+            <Relatorio
               clientId={activeClientId}
               clientName={activeClient?.name}
               range={range}

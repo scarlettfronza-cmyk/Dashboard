@@ -2,7 +2,7 @@
  * ReportVisuals — a parte visual de um relatório.
  *
  * Usado nos dois lugares para que a SDR veja exatamente o que o médico vê:
- * no portal público (`/portal/:token`) e na aba Análise com IA.
+ * no portal público (`/portal/:token`) e na aba Relatório.
  *
  * Desenha a partir do snapshot gravado junto do relatório, nunca de uma
  * consulta ao vivo — assim os gráficos não passam a contradizer o texto quando

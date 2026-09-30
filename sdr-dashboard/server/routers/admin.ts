@@ -2,7 +2,7 @@
  * admin.ts — painel da gestora.
  *
  * Fluxo que este router sustenta:
- *   1. A SDR cria a conta dela sozinha e entra numa tela vazia.
+ *   1. A gestora cria o login da SDR (ou a SDR cria a conta dela) e ela entra numa tela vazia.
  *   2. A gestora abre o painel, vê a nova SDR na lista.
  *   3. Busca o board da clínica pelo nome (não pelo ID).
  *   4. Atribui o board à SDR. Na próxima carga, o cliente aparece na sidebar dela.
@@ -19,6 +19,7 @@ import { users, sdrs, clients, aiReports } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
 import { listAllBoards, invalidateCatalog, invalidateCache } from "../monday";
 import { sincronizarCliente } from "../sync";
+import { hashPassword, normalizeEmail, passwordProblem } from "../password";
 
 async function requireDb() {
   const db = await getDb();
@@ -63,6 +64,7 @@ export const adminRouter = router({
           email: u.email,
           role: u.role,
           loginMethod: u.loginMethod,
+          hasPassword: Boolean(u.passwordHash),
           createdAt: u.createdAt,
           lastSignedIn: u.lastSignedIn,
           clientCount: sdr ? (clientCount.get(sdr.id) ?? 0) : 0,
@@ -90,6 +92,67 @@ export const adminRouter = router({
       });
       const [created] = await db.select().from(sdrs).where(eq(sdrs.userId, user.id)).limit(1);
       return created;
+    }),
+
+  /**
+   * A gestora cria o login da SDR (nome, e-mail e senha inicial) e já deixa o
+   * perfil pronto para receber clientes. A SDR pode trocar a senha depois.
+   */
+  createSdrAccount: adminProcedure
+    .input(
+      z.object({
+        name: z.string().trim().min(2, "Informe o nome.").max(120),
+        email: z.string().trim().email("E-mail inválido."),
+        password: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      const email = normalizeEmail(input.email);
+      const problem = passwordProblem(input.password);
+      if (problem) throw new TRPCError({ code: "BAD_REQUEST", message: problem });
+
+      const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+      if (existing.length) throw new TRPCError({ code: "CONFLICT", message: "Já existe uma conta com esse e-mail." });
+
+      const openId = `local:${nanoid(24)}`;
+      await db.insert(users).values({
+        openId,
+        name: input.name,
+        email,
+        passwordHash: await hashPassword(input.password),
+        loginMethod: "password",
+        role: "user",
+      });
+      const [user] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+      if (!user) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao criar a conta." });
+
+      await db.insert(sdrs).values({ userId: user.id, name: input.name, email, boardIds: "[]" });
+      return { userId: user.id, name: user.name, email };
+    }),
+
+  /**
+   * Define uma senha nova para qualquer conta: SDR que esqueceu a senha ou
+   * conta antiga do Manus, que não tinha senha própria.
+   */
+  setPassword: adminProcedure
+    .input(z.object({ userId: z.number().int().positive(), password: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = await requireDb();
+      const problem = passwordProblem(input.password);
+      if (problem) throw new TRPCError({ code: "BAD_REQUEST", message: problem });
+
+      const [user] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
+      if (!user) throw new TRPCError({ code: "NOT_FOUND", message: "Usuário não encontrado." });
+      if (!user.email) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Esta conta não tem e-mail. Use /recuperar para definir e-mail e senha." });
+      }
+
+      await db
+        .update(users)
+        .set({ passwordHash: await hashPassword(input.password), loginMethod: "password" })
+        .where(eq(users.id, user.id));
+      return { ok: true };
     }),
 
   setRole: adminProcedure

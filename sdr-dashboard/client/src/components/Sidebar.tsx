@@ -3,7 +3,7 @@
  * Clicar em um cliente expande sub-abas inline (accordion).
  * Todos os clientes ficam visíveis; o selecionado mostra as abas abaixo.
  */
-import { Calendar, Users, TrendingUp, RefreshCw, Activity, Sparkles, ChevronDown } from "lucide-react";
+import { Calendar, Users, TrendingUp, RefreshCw, Activity, Send, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CLIENT_TABS = [
@@ -11,7 +11,7 @@ const CLIENT_TABS = [
   { id: "agendamentos", label: "Agendamentos",     icon: <Calendar size={13} /> },
   { id: "atendimentos", label: "Atendimentos",     icon: <Users size={13} /> },
   { id: "gestao",       label: "Gestão de Vendas", icon: <TrendingUp size={13} /> },
-  { id: "analise",      label: "Análise com IA",   icon: <Sparkles size={13} /> },
+  { id: "analise",      label: "Relatório",        icon: <Send size={13} /> },
 ];
 
 interface Board {

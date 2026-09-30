@@ -4,7 +4,6 @@ import type { User } from "../../drizzle/schema";
 import { users } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { LOCAL_SESSION_COOKIE, readSessionToken } from "../password";
-import { sdk } from "./sdk";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -17,8 +16,7 @@ export async function createContext(
 ): Promise<TrpcContext> {
   let user: User | null = null;
 
-  // 1. Sessão local (cadastro com e-mail e senha). Tem precedência porque é o
-  //    caminho normal de login das SDRs.
+  // Sessão local (e-mail e senha), o único login do app.
   try {
     const cookieHeader = opts.req.headers.cookie ?? "";
     const token = cookieHeader
@@ -37,16 +35,6 @@ export async function createContext(
     }
   } catch {
     user = null;
-  }
-
-  // 2. Manus OAuth, mantido para as contas que já existiam.
-  if (!user) {
-    try {
-      user = await sdk.authenticateRequest(opts.req);
-    } catch {
-      // Autenticação é opcional para as procedures públicas.
-      user = null;
-    }
   }
 
   return {

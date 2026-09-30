@@ -110,5 +110,9 @@ temp/
 .webdev/
 
 # Manus version file (auto-generated, not part of source)
-client/public/__manus__/version.json
+# Export do Manus: dumps com dados de clínicas e senhas nunca vão para o Git
+.manus/
+*.sql.gz
+backup*.sql
+.manus-logs/
 .project-config.json
