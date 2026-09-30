@@ -197,6 +197,29 @@ describe("computeMetrics", () => {
     expect(m.agendamentos).toBe(41);
     expect(m.comparecimentos).toBe(2);
   });
+
+  it("diário com Consulta Agendada zerada não apaga as consultas do board de agendamentos", () => {
+    // Caso do Dr. Jonas: o diário tem os dias preenchidos (contatos, conversas),
+    // mas "Consulta Agendada" fica em zero; as consultas estão só no board.
+    const consultas = ["01/09/2026", "15/09/2026", "22/09/2026"].map((data, i) =>
+      lead({ id: `jonas-${i}`, clientName: "Dr Jonas", dataConsulta: data }),
+    );
+    const diaZerado = {
+      date: "2026-09-29",
+      novosContatos: 4,
+      novosAds: 2,
+      conversasRealizadas: 39,
+      consultaAgendada: 0,
+      agendadoAds: 0,
+      procedimentoVendido: 0,
+      boardId: "diario-jonas",
+      clientName: "Dr Jonas",
+      sdrName: "Luana",
+    };
+
+    const m = computeMetrics(consultas, { from: "2026-09-01", to: "2026-09-30" }, [diaZerado]);
+    expect(m.agendamentos).toBe(3);
+  });
 });
 
 describe("filtros compartilhados das abas", () => {

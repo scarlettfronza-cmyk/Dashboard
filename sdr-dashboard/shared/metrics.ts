@@ -324,9 +324,19 @@ export function computeMetrics(
   // que ainda não chegaram ao board individual de agendamentos. A preferência
   // é feita por cliente, pois a visão consolidada pode misturar clientes que
   // possuem e que não possuem o relatório diário.
+  //
+  // Só vale o diário do cliente que tem consultas agendadas preenchidas no
+  // período. Há clínicas (ex.: Dr. Jonas) em que a equipe registra contatos no
+  // diário mas deixa "Consulta Agendada" em zero; ali as consultas estão só no
+  // board de agendamentos, e usar o diário zerava o card de agendamentos.
   const chaveCliente = (value: { clientName: string; boardId: string }) => value.clientName || value.boardId;
-  const clientesComDiario = new Set(registrosDiariosNoPeriodo.map(chaveCliente));
-  const agendamentosDiarios = registrosDiariosNoPeriodo.reduce((sum, record) => sum + record.consultaAgendada, 0);
+  const somaDiarioPorCliente = new Map<string, number>();
+  for (const record of registrosDiariosNoPeriodo) {
+    const chave = chaveCliente(record);
+    somaDiarioPorCliente.set(chave, (somaDiarioPorCliente.get(chave) ?? 0) + record.consultaAgendada);
+  }
+  const clientesComDiario = new Set(Array.from(somaDiarioPorCliente).filter(([, soma]) => soma > 0).map(([chave]) => chave));
+  const agendamentosDiarios = Array.from(somaDiarioPorCliente.values()).reduce((sum, soma) => sum + soma, 0);
   const agendamentosPorLeadSemDiario = agendadosPorLead.filter(lead => !clientesComDiario.has(chaveCliente(lead))).length;
   const agendamentos = agendamentosDiarios + agendamentosPorLeadSemDiario;
   const compareceram = agendadosPorLead.filter(
