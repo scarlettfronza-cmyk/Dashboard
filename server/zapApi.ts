@@ -61,6 +61,41 @@ export async function sendGroupMessage(groupId: string, message: string): Promis
 }
 
 /**
+ * Envia texto com cartão de link (título, descrição e imagem). O WhatsApp
+ * mostra a prévia mesmo quando o robô dele não consegue ler a página.
+ */
+export async function sendGroupLink(
+  groupId: string,
+  message: string,
+  link: { url: string; title: string; description: string; image: string },
+): Promise<{ success: boolean; error?: string }> {
+  const c = credenciais();
+  if (c.faltando.length) {
+    return { success: false, error: `Z-API não configurado no servidor (faltam: ${c.faltando.join(", ")})` };
+  }
+  try {
+    const url = `${ZAPI_BASE}/instances/${c.instanceId}/token/${c.token}/send-link`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: getHeaders(c.clientToken!),
+      body: JSON.stringify({
+        phone: groupId,
+        message,
+        image: link.image,
+        linkUrl: link.url,
+        title: link.title,
+        linkDescription: link.description,
+      }),
+    });
+    const data = await resp.json() as { zaapId?: string; messageId?: string; error?: string };
+    if (!resp.ok || data.error) return { success: false, error: data.error || `HTTP ${resp.status}` };
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
  * Get all WhatsApp groups the instance has access to (fetches all pages)
  */
 export async function listGroups(): Promise<{ id: string; name: string }[]> {

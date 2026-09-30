@@ -1470,10 +1470,16 @@ async function enviarRelatorioDoCliente(input: { clientId: number; from: string;
   if (!client.publicToken) throw new Error("Este cliente não tem link público — gere um nas configurações do cliente");
   const link = linkRelatorio(input.origin, client.publicToken, input.from, input.to);
   const message = montarMensagemRelatorio({ clienteNome: client.name, from: input.from, to: input.to, texto: input.reportText }, link);
-  const { sendGroupMessage } = await import("./zapApi");
+  const { sendGroupMessage, sendGroupLink } = await import("./zapApi");
+  const { textosOg } = await import("./ogRelatorio");
+  const og = textosOg(client.name, input.from, input.to);
+  // Com cartão (título, descrição, imagem). Se o Z-API recusar o formato, vai o texto simples.
+  const comCartao = await sendGroupLink(client.whatsappGroupId, message, { url: link, ...og, image: `${input.origin.replace(/\/+$/, "")}/og-relatorio.png` });
+  if (comCartao.success) return { success: true as const, message, cartao: true };
+  console.warn("[WhatsApp] send-link falhou, enviando texto simples:", comCartao.error);
   const r = await sendGroupMessage(client.whatsappGroupId, message);
   if (!r.success) throw new Error(r.error || "O Z-API não aceitou a mensagem");
-  return { success: true as const, message };
+  return { success: true as const, message, cartao: false };
 }
 
 const envioInput = z.object({

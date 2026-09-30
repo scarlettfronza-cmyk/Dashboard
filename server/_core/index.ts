@@ -15,7 +15,8 @@ import { startBudgetCron } from "../budgetCron";
 import { startIgTokenRefreshCron } from "../igTokenRefreshCron";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
+import { serveStatic, setupVite, distPublicPath } from "./vite";
+import { registerOgRoute } from "../ogRelatorio";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -63,6 +64,8 @@ async function startServer() {
       createContext,
     })
   );
+  // Prévia do link do relatório (WhatsApp lê só o HTML do servidor)
+  registerOgRoute(app, distPublicPath());
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
