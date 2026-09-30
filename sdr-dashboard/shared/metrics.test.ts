@@ -220,6 +220,25 @@ describe("computeMetrics", () => {
     const m = computeMetrics(consultas, { from: "2026-09-01", to: "2026-09-30" }, [diaZerado]);
     expect(m.agendamentos).toBe(3);
   });
+
+  it("conta as consultas marcadas no período para depois dele", () => {
+    const leads = [
+      lead({ id: "marcou-agosto-para-setembro", dataConversao: "20/08/2026", dataConsulta: "05/09/2026" }),
+      lead({ id: "marcou-agosto-para-agosto", dataConversao: "02/08/2026", dataConsulta: "10/08/2026" }),
+      lead({ id: "marcou-julho-para-setembro", dataConversao: "25/07/2026", dataConsulta: "03/09/2026" }),
+    ];
+    expect(computeMetrics(leads, agosto).agendadasParaDepois).toBe(1);
+    expect(computeMetrics(leads, null).agendadasParaDepois).toBe(0);
+  });
+
+  it("reconhece mês fechado do calendário", async () => {
+    const { mesDoPeriodo } = await import("./metrics");
+    expect(mesDoPeriodo({ from: "2026-08-01", to: "2026-08-31" })).toEqual({ mes: "agosto", seguinte: "setembro" });
+    expect(mesDoPeriodo({ from: "2026-12-01", to: "2026-12-31" })).toEqual({ mes: "dezembro", seguinte: "janeiro" });
+    expect(mesDoPeriodo({ from: "2026-02-01", to: "2026-02-28" })?.mes).toBe("fevereiro");
+    expect(mesDoPeriodo({ from: "2026-08-01", to: "2026-08-30" })).toBeNull();
+    expect(mesDoPeriodo({ from: "2026-08-03", to: "2026-08-31" })).toBeNull();
+  });
 });
 
 describe("filtros compartilhados das abas", () => {

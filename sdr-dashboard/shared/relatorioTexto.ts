@@ -7,7 +7,7 @@
  * mesma função. Regras de estilo (handoff, seção 16): português claro, sem
  * travessões, sem nome de paciente, só números agregados.
  */
-import { formatBRL, formatRangeBR, type DateRange, type Metrics, type MetricsComparison } from "./metrics";
+import { formatBRL, formatRangeBR, mesDoPeriodo, type DateRange, type Metrics, type MetricsComparison } from "./metrics";
 
 function plural(n: number, um: string, varios: string): string {
   return `${n} ${n === 1 ? um : varios}`;
@@ -61,18 +61,26 @@ export function montarTextoRelatorio(d: DadosTextoRelatorio): string {
 
   blocos.push(`*Relatório comercial · ${d.clienteNome.trim()}*\nPeríodo: ${periodo}`);
 
-  const volume = [`📥 Leads recebidos: ${m.leadsRecebidos}`, `📅 Agendamentos: ${m.agendamentos}`];
-  volume.push(
+  // Agenda primeiro: é o que a SDR controla e o que a clínica quer ver
+  // (pedido da SDR, no formato "40 agendadas, sendo 32 comparecidas...").
+  const mes = mesDoPeriodo(d.range);
+  const agenda = [`📅 Consultas agendadas: ${m.agendamentos}`];
+  agenda.push(
     m.agendamentos > 0
       ? `✅ Comparecimentos: ${m.comparecimentos} (${pct(m.taxaComparecimento)} dos agendados)`
       : `✅ Comparecimentos: ${m.comparecimentos}`,
   );
-  volume.push(`🤝 Fechamentos: ${m.negociosFechados}`);
-  if (m.receitaTotal > 0) {
-    volume.push(`💰 Faturamento: ${formatBRL(m.receitaTotal)}`);
-    if (m.negociosFechados > 1) volume.push(`🎯 Ticket médio: ${formatBRL(m.ticketMedio)}`);
+  if (m.agendadasParaDepois > 0) {
+    agenda.push(`🗓️ Já marcadas para ${mes ? mes.seguinte : "depois do período"}: ${m.agendadasParaDepois}`);
   }
-  blocos.push(volume.join("\n"));
+  blocos.push(agenda.join("\n"));
+
+  const resultado = [`📥 Leads recebidos: ${m.leadsRecebidos}`, `🤝 Fechamentos: ${m.negociosFechados}`];
+  if (m.receitaTotal > 0) {
+    resultado.push(`💰 Faturamento: ${formatBRL(m.receitaTotal)}`);
+    if (m.negociosFechados > 1) resultado.push(`🎯 Ticket médio: ${formatBRL(m.ticketMedio)}`);
+  }
+  blocos.push(resultado.join("\n"));
 
   const canais = m.porCanal.filter(c => c.value > 0).slice(0, 3);
   if (canais.length > 0) {

@@ -6,6 +6,7 @@ const base: Metrics = {
   leadsRecebidos: 52,
   agendamentos: 40,
   comparecimentos: 30,
+  agendadasParaDepois: 8,
   negociosFechados: 6,
   negociosPerdidos: 4,
   emNegociacao: 3,
@@ -35,13 +36,24 @@ describe("montarTextoRelatorio", () => {
     expect(texto).toContain("Dra. Tatiana Patruni");
     expect(texto).toContain("01/08/2026 a 31/08/2026");
     expect(texto).toContain("Leads recebidos: 52");
-    expect(texto).toContain("Agendamentos: 40");
+    expect(texto).toContain("Consultas agendadas: 40");
     expect(texto).toContain("Comparecimentos: 30 (75% dos agendados)");
     expect(texto).toContain("Fechamentos: 6");
     expect(texto).toMatch(/Faturamento: R\$\s67\.200/);
     expect(texto).toMatch(/Ticket médio: R\$\s11\.200/);
     expect(texto).toContain("Instagram (30), Google (15) e Indicação (7)");
     expect(texto).not.toContain("Outros (0)");
+  });
+
+  it("começa pela agenda: agendadas, comparecimentos e marcadas para o mês seguinte", () => {
+    const texto = montarTextoRelatorio({ clienteNome: "Clínica", range, metrics: base });
+    expect(texto).toContain("📅 Consultas agendadas: 40\n✅ Comparecimentos: 30 (75% dos agendados)\n🗓️ Já marcadas para setembro: 8");
+    expect(texto.indexOf("Consultas agendadas")).toBeLessThan(texto.indexOf("Leads recebidos"));
+  });
+
+  it("período que não é um mês fechado diz 'depois do período'", () => {
+    const texto = montarTextoRelatorio({ clienteNome: "Clínica", range: { from: "2026-08-03", to: "2026-08-31" }, metrics: base });
+    expect(texto).toContain("Já marcadas para depois do período: 8");
   });
 
   it("não usa travessão", () => {
@@ -73,7 +85,7 @@ describe("montarTextoRelatorio", () => {
     });
     expect(texto).toContain("todo o período");
     expect(texto).not.toContain("Faturamento");
-    expect(texto).toContain("Comparecimentos: 0\n");
+    expect(texto).toMatch(/Comparecimentos: 0(\n|$)/m);
   });
 
   it("acrescenta o contexto escrito pela SDR", () => {

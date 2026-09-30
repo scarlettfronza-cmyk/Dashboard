@@ -10,7 +10,7 @@
  */
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
-import { formatBRL, type ReportSnapshot, type Distribution, type MetricDelta } from "@shared/metrics";
+import { formatBRL, mesDoPeriodo, type ReportSnapshot, type Distribution, type MetricDelta } from "@shared/metrics";
 
 const card = {
   background: "var(--card)",
@@ -25,12 +25,31 @@ export function ReportVisuals({ snapshot, compact = false }: { snapshot: ReportS
 
   return (
     <div className="space-y-4">
-      {/* Uma linha só de números. A receita entra aqui em vez de ocupar um
-          banner de largura inteira — antes eram duas fileiras de cartões mais
-          um banner antes de qualquer gráfico aparecer. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5">
+      {/* Agenda em destaque: consultas agendadas e comparecimentos são o que a
+          SDR entrega e o que a clínica acompanha (pedido da SDR). */}
+      <div className="grid gap-2.5 sm:grid-cols-2">
+        <Destaque
+          rotulo="Consultas agendadas"
+          valor={k.agendamentos}
+          cor="#3b82f6"
+          delta={c?.agendamentos}
+          detalhe={
+            k.agendadasParaDepois
+              ? `${k.agendadasParaDepois} já ${k.agendadasParaDepois === 1 ? "marcada" : "marcadas"} para ${proximoPeriodo(snapshot)}`
+              : undefined
+          }
+        />
+        <Destaque
+          rotulo="Comparecimentos"
+          valor={k.comparecimentos}
+          cor="#22c55e"
+          delta={c?.comparecimentos}
+          detalhe={k.agendamentos > 0 ? `${k.taxaComparecimento.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% dos agendados compareceram` : undefined}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <Kpi label="Leads" value={k.leadsRecebidos} color="#7c6af7" delta={c?.leadsRecebidos} />
-        <Kpi label="Agendamentos" value={k.agendamentos} color="#3b82f6" delta={c?.agendamentos} />
         <Kpi label="Fechados" value={k.negociosFechados} color="#22c55e" delta={c?.negociosFechados} />
         <Kpi label="Conversão" value={`${k.taxaConversao.toFixed(1)}%`} color="#f59e0b" delta={c?.taxaConversao} unidade="pp" />
         <Kpi label="Receita" value={formatBRL(k.receitaTotal)} color="#7c6af7" delta={c?.receitaTotal} destaque />
@@ -42,8 +61,6 @@ export function ReportVisuals({ snapshot, compact = false }: { snapshot: ReportS
           className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 rounded-xl text-sm"
           style={{ background: "var(--secondary)", border: "1px solid var(--border)" }}
         >
-          <Apoio rotulo="Compareceram" valor={k.comparecimentos} />
-          <Apoio rotulo="Taxa de comparecimento" valor={`${k.taxaComparecimento.toFixed(1)}%`} />
           <Apoio rotulo="Em negociação" valor={k.emNegociacao} />
           <Apoio rotulo="Perdidos" valor={k.negociosPerdidos} />
           <Apoio rotulo="Ticket médio" valor={formatBRL(k.ticketMedio)} />
@@ -70,6 +87,47 @@ const Apoio = ({ rotulo, valor }: { rotulo: string; valor: string | number }) =>
 );
 
 // ─── Peças ───────────────────────────────────────────────────────────────────
+
+function proximoPeriodo(snapshot: ReportSnapshot): string {
+  const { from, to } = snapshot.periodo;
+  const mes = from && to ? mesDoPeriodo({ from, to }) : null;
+  return mes ? mes.seguinte : "depois do período";
+}
+
+/** Cartão grande da agenda: número em evidência e uma linha de contexto. */
+function Destaque({
+  rotulo,
+  valor,
+  cor,
+  delta,
+  detalhe,
+}: {
+  rotulo: string;
+  valor: number;
+  cor: string;
+  delta?: MetricDelta;
+  detalhe?: string;
+}) {
+  return (
+    <div className="rounded-2xl px-5 py-4" style={{ ...card, borderLeft: `4px solid ${cor}` }}>
+      <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
+        {rotulo}
+      </p>
+      <p
+        className="text-5xl font-extrabold leading-none mt-2 tabular"
+        style={{ fontFamily: "'DM Sans', sans-serif", color: "var(--foreground)", letterSpacing: "-0.03em" }}
+      >
+        {valor}
+      </p>
+      {detalhe && (
+        <p className="text-sm mt-2 font-medium" style={{ color: cor }}>
+          {detalhe}
+        </p>
+      )}
+      {delta && <Variacao delta={delta} />}
+    </div>
+  );
+}
 
 function Kpi({
   label,

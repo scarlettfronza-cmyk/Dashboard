@@ -59,6 +59,12 @@ export interface Metrics {
   leadsRecebidos: number;
   agendamentos: number;
   comparecimentos: number;
+  /**
+   * Leads que marcaram consulta no período (data de conversão dentro dele)
+   * para uma data depois do fim do período. É o "8 agendadas para setembro"
+   * do relatório de agosto. Sem período, é zero.
+   */
+  agendadasParaDepois: number;
   negociosFechados: number;
   negociosPerdidos: number;
   emNegociacao: number;
@@ -339,6 +345,12 @@ export function computeMetrics(
   const agendamentosDiarios = Array.from(somaDiarioPorCliente.values()).reduce((sum, soma) => sum + soma, 0);
   const agendamentosPorLeadSemDiario = agendadosPorLead.filter(lead => !clientesComDiario.has(chaveCliente(lead))).length;
   const agendamentos = agendamentosDiarios + agendamentosPorLeadSemDiario;
+  const agendadasParaDepois = range
+    ? leads.filter(l => {
+        const consulta = parseDate(l.dataConsulta);
+        return Boolean(consulta && consulta > range.to && inRange(parseDate(l.dataConversao), range));
+      }).length
+    : 0;
   const compareceram = agendadosPorLead.filter(
     lead => !isCanalIndicacao(lead.canal) && compareceuIsPresente(lead.compareceu),
   );
@@ -396,6 +408,7 @@ export function computeMetrics(
     leadsRecebidos: recebidos.length,
     agendamentos,
     comparecimentos: compareceram.length,
+    agendadasParaDepois,
     negociosFechados: fechados.length,
     negociosPerdidos: perdidos.length,
     emNegociacao: emNegociacao.length,
@@ -507,6 +520,8 @@ export interface ReportSnapshot {
     leadsRecebidos: number;
     agendamentos: number;
     comparecimentos: number;
+    /** Ausente nos relatórios gravados antes deste campo existir. */
+    agendadasParaDepois?: number;
     negociosFechados: number;
     negociosPerdidos: number;
     emNegociacao: number;
@@ -542,6 +557,7 @@ export function buildReportSnapshot(
       leadsRecebidos: metrics.leadsRecebidos,
       agendamentos: metrics.agendamentos,
       comparecimentos: metrics.comparecimentos,
+      agendadasParaDepois: metrics.agendadasParaDepois,
       negociosFechados: metrics.negociosFechados,
       negociosPerdidos: metrics.negociosPerdidos,
       emNegociacao: metrics.emNegociacao,
@@ -579,6 +595,22 @@ export function monthLabel(yyyyMM: string): string {
 export function formatDateBR(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
+}
+
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+/**
+ * Se o período é exatamente um mês do calendário, devolve o nome dele e o do
+ * mês seguinte ("agosto", "setembro"). Serve para escrever "já marcadas para
+ * setembro" em vez de "para depois do período".
+ */
+export function mesDoPeriodo(range: DateRange | null): { mes: string; seguinte: string } | null {
+  if (!range) return null;
+  const [ano, mes, dia] = range.from.split("-").map(Number);
+  if (dia !== 1 || !range.to.startsWith(range.from.slice(0, 8))) return null;
+  const ultimoDia = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+  if (Number(range.to.slice(8, 10)) !== ultimoDia) return null;
+  return { mes: MESES[mes - 1], seguinte: MESES[mes % 12] };
 }
 
 export function formatRangeBR(range: DateRange): string {
