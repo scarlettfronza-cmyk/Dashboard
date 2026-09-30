@@ -199,6 +199,11 @@ export function groupNameToPeriodDate(groupName: string | null | undefined): Dat
  * do registro nunca é data comercial: ela muda a cada sincronização e levaria
  * fechamentos antigos para o mês atual.
  */
+/**
+ * Data em que uma venda conta: a de fechamento, só ela. O cliente pode pagar
+ * hoje e fazer o procedimento semanas depois; a receita é do mês do
+ * pagamento. Sem data de fechamento não é venda (ver mondaySync.parseItem).
+ */
 export function getClosingReferenceDate(record: {
   conversionDate?: Date | null;
   consultDate?: Date | null;
@@ -206,9 +211,6 @@ export function getClosingReferenceDate(record: {
   lastUpdated?: Date | null;
 }): Date | null {
   if (record.conversionDate) return new Date(record.conversionDate);
-  if (record.consultDate) return new Date(record.consultDate);
-  const groupDate = groupNameToPeriodDate(record.groupName);
-  if (groupDate) return groupDate;
   return null;
 }
 
@@ -263,9 +265,7 @@ export async function getSalesRowsForPeriod(clientId: number, _from?: string, _t
       return false; // sem data nem grupo: excluir
     });
 
-    // Fechamentos: prioriza a data explícita de fechamento. Sem ela, usa a data da
-    // consulta e só então o mês do grupo. Isso evita excluir procedimentos válidos
-    // em períodos parciais quando o Monday não informa a data de conversão.
+    // Fechamentos: pela data de fechamento, e só por ela.
     fechamentoRows = allRows.filter((r) => {
       if (!r.closed) return false;
       return inRange(getClosingReferenceDate(r));

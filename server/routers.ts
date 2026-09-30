@@ -1347,8 +1347,31 @@ const mondayRouter = router({
         .from(integrationsTable)
         .where(drizzleAndLocal(drizzleEqLocal(integrationsTable.clientId, input.clientId), drizzleEqLocal(integrationsTable.provider, "monday")))
         .limit(1);
-      const hasToken = !!(integRows[0]?.accessToken);
-      return { boardId: row?.mondayBoardId ?? null, lastSync: row?.mondayLastSync ?? null, hasToken };
+      const { lerConfigMonday } = await import("./mondaySync");
+      const hasToken = !!(integRows[0]?.accessToken) || !!(await getSystemSetting("monday_api_token"));
+      const config = await lerConfigMonday(input.clientId);
+      return { boardId: row?.mondayBoardId ?? null, lastSync: row?.mondayLastSync ?? null, hasToken, config };
+    }),
+
+  // Colunas do quadro, para a gestora escolher a data de fechamento e o valor da venda
+  listarColunasAsManager: publicProcedure
+    .input(z.object({ clientId: z.number(), boardId: z.string(), managerToken: z.string() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.managerToken, input.clientId);
+      const { listarColunasMonday } = await import("./mondaySync");
+      return listarColunasMonday(input.clientId, input.boardId.trim());
+    }),
+
+  salvarColunasAsManager: publicProcedure
+    .input(z.object({
+      clientId: z.number(), managerToken: z.string(),
+      colunaDataFechamentoId: z.string().nullable(), colunaValorVendaId: z.string().nullable(),
+    }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.managerToken, input.clientId);
+      const { salvarConfigMonday } = await import("./mondaySync");
+      await salvarConfigMonday(input.clientId, { colunaDataFechamentoId: input.colunaDataFechamentoId, colunaValorVendaId: input.colunaValorVendaId });
+      return { success: true };
     }),
 
   // Auto-sync: called when opening a client report — syncs if token+boardId configured

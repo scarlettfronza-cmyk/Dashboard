@@ -32,7 +32,7 @@ interface MondayItem {
   column_values: MondayColumnValue[];
 }
 
-interface BoardColumn {
+export interface BoardColumn {
   id: string;
   title: string;
   type: string;
@@ -87,7 +87,7 @@ async function mondayGraphQL(
 
 // Board schema
 
-async function getBoardSchema(boardId: string, token: string): Promise<BoardColumn[]> {
+export async function getBoardSchema(boardId: string, token: string): Promise<BoardColumn[]> {
   const query = `
     query GetBoardSchema($boardId: ID!) {
       boards(ids: [$boardId]) {
@@ -150,7 +150,7 @@ async function getBoardItemsPage(
 
 // Column detection
 
-interface ColumnMap {
+export interface ColumnMap {
   consultValueId?: string;
   surgeryValueId?: string;
   consultDateId?: string;
@@ -163,7 +163,7 @@ interface ColumnMap {
   format: "A" | "B" | "C";
 }
 
-function detectColumnMap(columns: BoardColumn[]): ColumnMap {
+export function detectColumnMap(columns: BoardColumn[]): ColumnMap {
   const map: ColumnMap = { format: "A" };
 
   for (const col of columns) {
@@ -378,54 +378,14 @@ function parseItem(item: MondayItem, colMap: ColumnMap): ParsedRecord {
   const surgeryText = colMap.surgeryValueId ? getColumnText(item, colMap.surgeryValueId) : null;
   const surgeryValue = parseNumberValue(surgeryText);
 
-   let closed = false;
-  let closedValue: number | null = null;
+  // Venda = data de fechamento preenchida, e só isso. Status, "compareceu"
+  // ou valor de procedimento não contam: cada vendedora preenche o quadro
+  // de um jeito, e a gestora quer a receita do mês em que o cliente pagou —
+  // o procedimento pode ser semanas depois.
+  const closed = !!conversionDate;
+  const closedValText = colMap.closedValueId ? getColumnText(item, colMap.closedValueId) : null;
+  const closedValue: number | null = closedValText != null ? parseNumberValue(closedValText) : null;
 
-  // Determine fechamento por formato e status
-  // Lógica híbrida:
-  //   - Se o board tem coluna de status: usa SOMENTE o status ("Negócio Fechado", "Feito", etc.)
-  //   - Se o board NÃO tem coluna de status: usa surgeryValue > 0 como fallback (boards sem status configurado)
-  const statusText = colMap.statusId ? (getColumnText(item, colMap.statusId) ?? "").toLowerCase() : "";
-  const hasStatusColumn = !!colMap.statusId;
-  const isStatusFechado =
-    statusText.includes("negocio fechado") ||
-    statusText.includes("negócio fechado") ||
-    statusText.includes("feito") ||
-    statusText.includes("cirurgia realizada") ||
-    statusText === "sim" || // coluna "Fechou" do Neo Hair
-    statusText.includes("fechado") ||
-    statusText.includes("fechou");
-
-  // Se o board tem coluna de data de fechamento (conversionDateId) preenchida → é fechamento
-  // Isso tem prioridade máxima: se a data de fechamento está preenchida, o negócio fechou.
-  const hasConversionDate = !!conversionDate;
-
-  if (colMap.format === "C") {
-    const closedValText = colMap.closedValueId ? getColumnText(item, colMap.closedValueId) : null;
-    const closedVal = parseNumberValue(closedValText);
-    closedValue = closedVal;
-    // Formato C: OBRIGATÓRIO ter data de fechamento preenchida para contar como fechamento
-    // Se não tem conversionDate, não é fechamento — independente do status ou valor
-    closed = hasConversionDate;
-  } else if (colMap.format === "B") {
-    // Formato B: data de fechamento preenchida > status > surgeryValue > 0
-    if (hasConversionDate) {
-      closed = true;
-    } else if (hasStatusColumn) {
-      closed = isStatusFechado;
-    } else {
-      closed = surgeryValue !== null && surgeryValue > 0;
-    }
-  } else {
-    // Formato A (padrão): data de fechamento preenchida > status > surgeryValue > 0
-    if (hasConversionDate) {
-      closed = true;
-    } else if (hasStatusColumn) {
-      closed = isStatusFechado;
-    } else {
-      closed = surgeryValue !== null && surgeryValue > 0;
-    }
-  }
   return { patientName, consultDate, conversionDate, acquisitionChannel, consultValue, surgeryValue, closedValue, closed };
 }
 
@@ -450,6 +410,61 @@ export interface SyncOptions {
   endDate?: Date;
 }
 
+/** Token do Monday: o da agência (system_settings) primeiro; o antigo por cliente como reserva. */
+export async function obterTokenMonday(clientId: number): Promise<string | null> {
+  const global = await getSystemSetting("monday_api_token");
+  if (global) return global;
+  const { getIntegration } = await import("./db");
+  const integration = await getIntegration(clientId, "monday");
+  return integration?.accessToken ?? null;
+}
+
+/**
+ * Escolha da gestora, por cliente, de quais colunas do quadro valem como
+ * data de fechamento e valor da venda. Fica no extraConfig da integração
+ * "monday" do cliente. Sem escolha, vale a detecção pelo nome da coluna.
+ */
+export type ConfigMonday = {
+  colunaDataFechamentoId?: string | null;
+  colunaValorVendaId?: string | null;
+};
+
+export async function lerConfigMonday(clientId: number): Promise<ConfigMonday> {
+  const { getIntegration } = await import("./db");
+  const row = await getIntegration(clientId, "monday");
+  const cfg = (row?.extraConfig ?? {}) as ConfigMonday;
+  return { colunaDataFechamentoId: cfg.colunaDataFechamentoId ?? null, colunaValorVendaId: cfg.colunaValorVendaId ?? null };
+}
+
+export async function salvarConfigMonday(clientId: number, cfg: ConfigMonday): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("DB unavailable");
+  const existente = await db.select({ id: integrations.id }).from(integrations)
+    .where(and(eq(integrations.clientId, clientId), eq(integrations.provider, "monday"))).limit(1);
+  if (existente[0]) {
+    await db.update(integrations).set({ extraConfig: cfg }).where(eq(integrations.id, existente[0].id));
+  } else {
+    await db.insert(integrations).values({ clientId, provider: "monday", accessToken: null, extraConfig: cfg });
+  }
+}
+
+/** Colunas do quadro e o que a detecção automática escolheria — para a tela de escolha. */
+export async function listarColunasMonday(clientId: number, boardId: string) {
+  const token = await obterTokenMonday(clientId);
+  if (!token) throw new Error("Token do Monday não configurado. Salve-o em Configurações.");
+  const colunas = await getBoardSchema(boardId, token);
+  const detectado = detectColumnMap(colunas);
+  return {
+    colunas,
+    detectado: {
+      dataFechamentoId: detectado.conversionDateId ?? null,
+      valorVendaId: detectado.closedValueId ?? detectado.surgeryValueId ?? null,
+      dataConsultaId: detectado.consultDateId ?? null,
+      valorConsultaId: detectado.consultValueId ?? null,
+    },
+  };
+}
+
 export async function syncMondayBoard(
   clientId: number,
   boardId: string,
@@ -458,19 +473,7 @@ export async function syncMondayBoard(
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
 
-  // 1. Get token: try global system setting first, then fall back to per-client integration
-  let token: string | null = await getSystemSetting("monday_api_token");
-
-  if (!token) {
-    // Fall back to per-client token (legacy)
-    const integration = await db
-      .select()
-      .from(integrations)
-      .where(and(eq(integrations.clientId, clientId), eq(integrations.provider, "monday")))
-      .limit(1)
-      .then((rows) => rows[0]);
-    token = integration?.accessToken ?? null;
-  }
+  const token = await obterTokenMonday(clientId);
 
   if (!token) {
     // No token configured — return silently without error (client may not use Monday)
@@ -481,6 +484,10 @@ export async function syncMondayBoard(
   // 2. Get board schema
   const columns = await getBoardSchema(boardId, token);
   const colMap = detectColumnMap(columns);
+  // A escolha da gestora vence a detecção pelo nome.
+  const cfg = await lerConfigMonday(clientId);
+  if (cfg.colunaDataFechamentoId) { colMap.conversionDateId = cfg.colunaDataFechamentoId; colMap.conversionDatePriority = 99; }
+  if (cfg.colunaValorVendaId) { colMap.closedValueId = cfg.colunaValorVendaId; colMap.format = "C"; }
   console.log(`[Monday Sync] Detected format: ${colMap.format} | conversionDateId: ${colMap.conversionDateId ?? 'NONE'} (priority: ${colMap.conversionDatePriority ?? 0}) | consultDateId: ${colMap.consultDateId ?? 'NONE'}`);
   // Debug: always log all date columns to help diagnose missing dates
   const dateCols = columns.filter(c => c.type === 'date');

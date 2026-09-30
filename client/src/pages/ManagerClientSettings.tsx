@@ -378,6 +378,24 @@ export default function ManagerClientSettings() {
     { enabled: !!token && !!clientId }
   );
 
+  // Escolha das colunas do quadro que valem como data de fechamento e valor da venda.
+  const [colunasMonday, setColunasMonday] = useState<Array<{ id: string; title: string; type: string }> | null>(null);
+  const [colDataFechamento, setColDataFechamento] = useState<string>("");
+  const [colValorVenda, setColValorVenda] = useState<string>("");
+  const listarColunas = trpc.monday.listarColunasAsManager.useMutation({
+    onSuccess: (r) => {
+      setColunasMonday(r.colunas);
+      const cfg = mondayStatus.data?.config;
+      setColDataFechamento(cfg?.colunaDataFechamentoId ?? r.detectado.dataFechamentoId ?? "");
+      setColValorVenda(cfg?.colunaValorVendaId ?? r.detectado.valorVendaId ?? "");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const salvarColunas = trpc.monday.salvarColunasAsManager.useMutation({
+    onSuccess: () => { toast.success("Colunas salvas. Sincronizando com a nova regra..."); mondayStatus.refetch(); handleSyncMonday(); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const saveBoardId = trpc.monday.saveBoardIdAsManager.useMutation({
     onSuccess: () => { toast.success("Board ID salvo!"); mondayStatus.refetch(); },
     onError: (err) => toast.error(err.message),
@@ -839,6 +857,53 @@ export default function ManagerClientSettings() {
             <p className="text-xs" style={{ color: "oklch(0.40 0.010 240)" }}>
               O Board ID está na URL do Monday.com: monday.com/boards/<strong className="text-white">7171531533</strong>
             </p>
+
+            {/* Como contar vendas: a data de fechamento manda. Cada quadro chama a
+                coluna de um jeito, então a gestora escolhe qual é. */}
+            <div className="rounded-lg p-3 flex flex-col gap-2" style={{ background: "oklch(0.13 0.012 255)", border: "1px solid oklch(0.24 0.012 255)" }}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-white">Como contar vendas</span>
+                <ActionBtn variant="secondary" disabled={listarColunas.isPending || (!mondayStatus.data?.boardId && !mondayBoardId.trim())}
+                  onClick={() => listarColunas.mutate({ clientId, boardId: mondayStatus.data?.boardId || mondayBoardId.trim(), managerToken: token! })}>
+                  {listarColunas.isPending ? "Carregando..." : colunasMonday ? "Recarregar colunas" : "Carregar colunas do quadro"}
+                </ActionBtn>
+              </div>
+              <p className="text-xs" style={{ color: "oklch(0.50 0.010 240)" }}>
+                Uma venda conta quando a <strong className="text-white">data de fechamento</strong> está preenchida, no mês dessa data (o dia do procedimento não importa).
+                {mondayStatus.data?.config?.colunaDataFechamentoId
+                  ? " Coluna escolhida por você."
+                  : " Sem escolha, o sistema tenta achar a coluna pelo nome — escolha aqui para não depender disso."}
+              </p>
+              {colunasMonday && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs" style={{ color: "oklch(0.65 0.010 240)" }}>
+                    Coluna da data de fechamento (pagamento)
+                    <select value={colDataFechamento} onChange={(e) => setColDataFechamento(e.target.value)}
+                      className="text-sm rounded-md px-2 py-2 outline-none" style={{ background: "oklch(0.16 0.012 255)", border: "1px solid oklch(0.26 0.012 255)", color: "#fff" }}>
+                      <option value="">— automático (pelo nome) —</option>
+                      {colunasMonday.filter((c) => c.type === "date").map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs" style={{ color: "oklch(0.65 0.010 240)" }}>
+                    Coluna do valor da venda
+                    <select value={colValorVenda} onChange={(e) => setColValorVenda(e.target.value)}
+                      className="text-sm rounded-md px-2 py-2 outline-none" style={{ background: "oklch(0.16 0.012 255)", border: "1px solid oklch(0.26 0.012 255)", color: "#fff" }}>
+                      <option value="">— automático (pelo nome) —</option>
+                      {colunasMonday.filter((c) => c.type === "numbers" || c.type === "numeric").map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                    </select>
+                  </label>
+                  <div className="sm:col-span-2 flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-[11px]" style={{ color: "oklch(0.45 0.010 240)" }}>
+                      {colunasMonday.filter((c) => c.type === "date").length === 0 && "Este quadro não tem coluna de data — crie uma \"Data de fechamento\" no Monday para as vendas contarem."}
+                    </span>
+                    <ActionBtn color="oklch(0.72 0.18 145)" disabled={salvarColunas.isPending}
+                      onClick={() => salvarColunas.mutate({ clientId, managerToken: token!, colunaDataFechamentoId: colDataFechamento || null, colunaValorVendaId: colValorVenda || null })}>
+                      {salvarColunas.isPending ? "Salvando..." : "Salvar e sincronizar"}
+                    </ActionBtn>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {mondayStatus.data && !mondayStatus.data.hasToken && (
               <div className="rounded-lg p-3 text-xs" style={{ background: "oklch(0.75 0.18 60 / 0.08)", border: "1px solid oklch(0.75 0.18 60 / 0.25)", color: "oklch(0.75 0.18 60)" }}>
