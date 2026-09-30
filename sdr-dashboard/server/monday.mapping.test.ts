@@ -36,6 +36,14 @@ describe("mappingFromTitles", () => {
     expect(mappingFromTitles(comGenerico).valor).toEqual(["cirurgia-valor"]);
   });
 
+  it("lê o Valor da Consulta à parte, sem tirar a coluna da receita", () => {
+    expect(mappingFromTitles(columns).valorConsulta).toEqual(["consulta-valor"]);
+    const soConsulta: ColumnMeta[] = [{ id: "vc", title: "Valor da Consulta", type: "numbers" }];
+    const m = mappingFromTitles(soConsulta);
+    expect(m.valorConsulta).toEqual(["vc"]);
+    expect(m.valor).toEqual(["vc"]);
+  });
+
   it("não trata 'Data Consulta Fechada' como data da consulta", () => {
     const mapping = mappingFromTitles(columns);
     expect(mapping.dataConsulta).toEqual(["consulta"]);

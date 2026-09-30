@@ -7,6 +7,8 @@ const base: Metrics = {
   agendamentos: 40,
   comparecimentos: 30,
   agendadasParaDepois: 8,
+  consultasPagas: 25,
+  receitaConsultas: 17500,
   negociosFechados: 6,
   negociosPerdidos: 4,
   emNegociacao: 3,
@@ -54,6 +56,13 @@ describe("montarTextoRelatorio", () => {
   it("período que não é um mês fechado diz 'depois do período'", () => {
     const texto = montarTextoRelatorio({ clienteNome: "Clínica", range: { from: "2026-08-03", to: "2026-08-31" }, metrics: base });
     expect(texto).toContain("Já marcadas para depois do período: 8");
+  });
+
+  it("mostra as consultas pagas com quantidade e valor", () => {
+    const texto = montarTextoRelatorio({ clienteNome: "Clínica", range, metrics: base });
+    expect(texto).toMatch(/Consultas pagas: 25 \(R\$\s17\.500\)/);
+    const semConsulta = montarTextoRelatorio({ clienteNome: "Clínica", range, metrics: { ...base, consultasPagas: 0, receitaConsultas: 0 } });
+    expect(semConsulta).not.toContain("Consultas pagas");
   });
 
   it("não usa travessão", () => {

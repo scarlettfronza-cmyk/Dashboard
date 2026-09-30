@@ -25,11 +25,11 @@ export function ReportVisuals({ snapshot, compact = false }: { snapshot: ReportS
 
   return (
     <div className="space-y-4">
-      {/* Agenda em destaque: consultas agendadas e comparecimentos são o que a
-          SDR entrega e o que a clínica acompanha (pedido da SDR). */}
-      <div className="grid gap-2.5 sm:grid-cols-2">
+      {/* Números principais, na ordem pedida pela gestora: agenda primeiro,
+          depois resultado comercial. Leads fica na tira de apoio. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
         <Destaque
-          rotulo="Consultas agendadas"
+          rotulo="Agendamentos"
           valor={k.agendamentos}
           cor="#3b82f6"
           delta={c?.agendamentos}
@@ -44,15 +44,35 @@ export function ReportVisuals({ snapshot, compact = false }: { snapshot: ReportS
           valor={k.comparecimentos}
           cor="#22c55e"
           delta={c?.comparecimentos}
-          detalhe={k.agendamentos > 0 ? `${k.taxaComparecimento.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% dos agendados compareceram` : undefined}
+          detalhe={k.agendamentos > 0 ? `${pct(k.taxaComparecimento)} dos agendados` : undefined}
         />
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <Kpi label="Leads" value={k.leadsRecebidos} color="#7c6af7" delta={c?.leadsRecebidos} />
-        <Kpi label="Fechados" value={k.negociosFechados} color="#22c55e" delta={c?.negociosFechados} />
-        <Kpi label="Conversão" value={`${k.taxaConversao.toFixed(1)}%`} color="#f59e0b" delta={c?.taxaConversao} unidade="pp" />
-        <Kpi label="Receita" value={formatBRL(k.receitaTotal)} color="#7c6af7" delta={c?.receitaTotal} destaque />
+        <Destaque rotulo="Fechados" valor={k.negociosFechados} cor="#16a34a" delta={c?.negociosFechados} />
+        <Destaque
+          rotulo="Conversão"
+          valor={pct(k.taxaConversao)}
+          cor="#f59e0b"
+          delta={c?.taxaConversao}
+          detalhe="fechados sobre leads recebidos"
+        />
+        <Destaque
+          rotulo="Receita"
+          valor={formatBRL(k.receitaTotal)}
+          cor="#7c6af7"
+          delta={c?.receitaTotal}
+          detalhe={k.negociosFechados > 0 ? `ticket médio ${formatBRL(k.ticketMedio)}` : undefined}
+        />
+        <Destaque
+          rotulo="Consultas pagas"
+          valor={formatBRL(k.receitaConsultas ?? 0)}
+          cor="#0ea5e9"
+          detalhe={
+            k.consultasPagas
+              ? `${k.consultasPagas} ${k.consultasPagas === 1 ? "consulta" : "consultas"}`
+              : k.receitaConsultas === undefined
+                ? "sem dado neste relatório"
+                : "nenhuma no período"
+          }
+        />
       </div>
 
       {/* Métricas de apoio numa tira fina, não em cartões. */}
@@ -61,9 +81,9 @@ export function ReportVisuals({ snapshot, compact = false }: { snapshot: ReportS
           className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 rounded-xl text-sm"
           style={{ background: "var(--secondary)", border: "1px solid var(--border)" }}
         >
+          <Apoio rotulo="Leads recebidos" valor={k.leadsRecebidos} />
           <Apoio rotulo="Em negociação" valor={k.emNegociacao} />
           <Apoio rotulo="Perdidos" valor={k.negociosPerdidos} />
-          <Apoio rotulo="Ticket médio" valor={formatBRL(k.ticketMedio)} />
         </div>
       )}
 
@@ -88,6 +108,8 @@ const Apoio = ({ rotulo, valor }: { rotulo: string; valor: string | number }) =>
 
 // ─── Peças ───────────────────────────────────────────────────────────────────
 
+const pct = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+
 function proximoPeriodo(snapshot: ReportSnapshot): string {
   const { from, to } = snapshot.periodo;
   const mes = from && to ? mesDoPeriodo({ from, to }) : null;
@@ -103,7 +125,7 @@ function Destaque({
   detalhe,
 }: {
   rotulo: string;
-  valor: number;
+  valor: string | number;
   cor: string;
   delta?: MetricDelta;
   detalhe?: string;
@@ -114,7 +136,7 @@ function Destaque({
         {rotulo}
       </p>
       <p
-        className="text-5xl font-extrabold leading-none mt-2 tabular"
+        className="text-3xl md:text-4xl font-extrabold leading-none mt-2 tabular"
         style={{ fontFamily: "'DM Sans', sans-serif", color: "var(--foreground)", letterSpacing: "-0.03em" }}
       >
         {valor}
@@ -125,48 +147,6 @@ function Destaque({
         </p>
       )}
       {delta && <Variacao delta={delta} />}
-    </div>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  color,
-  delta,
-  unidade,
-  destaque,
-}: {
-  label: string;
-  value: string | number;
-  color: string;
-  delta?: MetricDelta;
-  unidade?: string;
-  destaque?: boolean;
-}) {
-  return (
-    <div
-      className="rounded-xl px-3.5 py-3"
-      style={{
-        ...card,
-        borderLeft: `3px solid ${color}`,
-        ...(destaque ? { background: "oklch(0.55 0.20 280 / 0.06)" } : {}),
-      }}
-    >
-      <p className="text-sm font-medium leading-tight truncate" style={{ color: "var(--muted-foreground)" }}>
-        {label}
-      </p>
-      <p
-        className="text-2xl font-extrabold leading-none mt-1.5 tabular"
-        style={{
-          fontFamily: "'DM Sans', sans-serif",
-          color: destaque ? "var(--primary)" : "var(--foreground)",
-          letterSpacing: "-0.02em",
-        }}
-      >
-        {value}
-      </p>
-      {delta && <Variacao delta={delta} unidade={unidade} />}
     </div>
   );
 }

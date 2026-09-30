@@ -119,15 +119,19 @@ export function useClientData(
   const clientesResolvidos = clientCount !== undefined;
   const temClientes = (clientCount ?? 0) > 0;
 
+  // As consultas leem só a cópia local (barato). Relendo a cada 2 minutos, a
+  // tela aberta acompanha a sincronização automática e o "Atualizar dados"
+  // feito por outra pessoa, sem precisar recarregar a página.
+  const releitura = { staleTime: 60 * 1000, refetchInterval: 2 * 60 * 1000, refetchOnWindowFocus: true, retry: 1 };
+
   const single = trpc.sdr.clientData.useQuery(
     { clientId: clientId ?? 0 },
-    { enabled: authenticated && clientId !== null, staleTime: 5 * 60 * 1000, retry: 1 },
+    { enabled: authenticated && clientId !== null, ...releitura },
   );
 
   const all = trpc.sdr.allClientsData.useQuery(undefined, {
     enabled: shouldLoadAllClientData(clientId, opts),
-    staleTime: 5 * 60 * 1000,
-    retry: 1,
+    ...releitura,
   });
 
   const active = clientId !== null ? single : all;

@@ -30,6 +30,8 @@ export interface Lead {
   compareceu: string;
   statusLead: string;
   valor: number | null;
+  /** Valor da consulta paga. Ausente nas cópias do Monday anteriores a este campo. */
+  valorConsulta?: number | null;
   obs: string;
   boardId: string;
   boardName: string;
@@ -65,6 +67,10 @@ export interface Metrics {
    * do relatório de agosto. Sem período, é zero.
    */
   agendadasParaDepois: number;
+  /** Consultas do período com presença e valor de consulta preenchido. */
+  consultasPagas: number;
+  /** Soma do "Valor da Consulta" dessas consultas. */
+  receitaConsultas: number;
   negociosFechados: number;
   negociosPerdidos: number;
   emNegociacao: number;
@@ -351,6 +357,9 @@ export function computeMetrics(
         return Boolean(consulta && consulta > range.to && inRange(parseDate(l.dataConversao), range));
       }).length
     : 0;
+  // Consulta paga: aconteceu no período (data da consulta + presença) e tem
+  // valor. Indicação entra: a exclusão dela vale só para a taxa comercial.
+  const pagas = agendadosPorLead.filter(l => compareceuIsPresente(l.compareceu) && (l.valorConsulta ?? 0) > 0);
   const compareceram = agendadosPorLead.filter(
     lead => !isCanalIndicacao(lead.canal) && compareceuIsPresente(lead.compareceu),
   );
@@ -409,6 +418,8 @@ export function computeMetrics(
     agendamentos,
     comparecimentos: compareceram.length,
     agendadasParaDepois,
+    consultasPagas: pagas.length,
+    receitaConsultas: pagas.reduce((sum, l) => sum + (l.valorConsulta ?? 0), 0),
     negociosFechados: fechados.length,
     negociosPerdidos: perdidos.length,
     emNegociacao: emNegociacao.length,
@@ -522,6 +533,8 @@ export interface ReportSnapshot {
     comparecimentos: number;
     /** Ausente nos relatórios gravados antes deste campo existir. */
     agendadasParaDepois?: number;
+    consultasPagas?: number;
+    receitaConsultas?: number;
     negociosFechados: number;
     negociosPerdidos: number;
     emNegociacao: number;
@@ -558,6 +571,8 @@ export function buildReportSnapshot(
       agendamentos: metrics.agendamentos,
       comparecimentos: metrics.comparecimentos,
       agendadasParaDepois: metrics.agendadasParaDepois,
+      consultasPagas: metrics.consultasPagas,
+      receitaConsultas: metrics.receitaConsultas,
       negociosFechados: metrics.negociosFechados,
       negociosPerdidos: metrics.negociosPerdidos,
       emNegociacao: metrics.emNegociacao,

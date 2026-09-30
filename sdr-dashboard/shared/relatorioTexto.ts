@@ -80,6 +80,9 @@ export function montarTextoRelatorio(d: DadosTextoRelatorio): string {
     resultado.push(`💰 Faturamento: ${formatBRL(m.receitaTotal)}`);
     if (m.negociosFechados > 1) resultado.push(`🎯 Ticket médio: ${formatBRL(m.ticketMedio)}`);
   }
+  if (m.receitaConsultas > 0) {
+    resultado.push(`🩺 Consultas pagas: ${m.consultasPagas} (${formatBRL(m.receitaConsultas)})`);
+  }
   blocos.push(resultado.join("\n"));
 
   const canais = m.porCanal.filter(c => c.value > 0).slice(0, 3);

@@ -231,6 +231,19 @@ describe("computeMetrics", () => {
     expect(computeMetrics(leads, null).agendadasParaDepois).toBe(0);
   });
 
+  it("soma as consultas pagas do período: presença e valor de consulta", () => {
+    const leads = [
+      lead({ id: "pagou", dataConsulta: "05/08/2026", compareceu: "Sim", valorConsulta: 750 }),
+      lead({ id: "indicacao-pagou", canal: "Indicação", dataConsulta: "06/08/2026", compareceu: "Sim", valorConsulta: 750 }),
+      lead({ id: "faltou", dataConsulta: "07/08/2026", compareceu: "Não", valorConsulta: 750 }),
+      lead({ id: "convenio-sem-valor", dataConsulta: "08/08/2026", compareceu: "Sim", valorConsulta: null }),
+      lead({ id: "setembro", dataConsulta: "02/09/2026", compareceu: "Sim", valorConsulta: 750 }),
+    ];
+    const m = computeMetrics(leads, agosto);
+    expect(m.consultasPagas).toBe(2);
+    expect(m.receitaConsultas).toBe(1500);
+  });
+
   it("reconhece mês fechado do calendário", async () => {
     const { mesDoPeriodo } = await import("./metrics");
     expect(mesDoPeriodo({ from: "2026-08-01", to: "2026-08-31" })).toEqual({ mes: "agosto", seguinte: "setembro" });

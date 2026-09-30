@@ -37,6 +37,8 @@ export interface ColumnMapping {
   compareceu: string[];
   statusLead: string[];
   valor: string[];
+  /** "Valor da Consulta": consulta paga, separada da receita de procedimento. */
+  valorConsulta: string[];
   obs: string[];
   /** Colunas numéricas do board de atendimento diário. */
   atendimento?: Record<keyof Omit<AtendimentoRecord, "date" | "boardId" | "clientName" | "sdrName">, string>;
@@ -53,6 +55,7 @@ const PROFILE_AGENDAMENTO_V1: ColumnMapping = {
   compareceu: ["color_mkxef5es"],
   statusLead: ["color_mkxe737q"],
   valor: ["numeric_mkxegda4"],
+  valorConsulta: [],
   obs: ["text_mkxef0sn"],
 };
 
@@ -68,6 +71,7 @@ const PROFILE_ELLORA: ColumnMapping = {
   statusLead: ["color_mm0gc5pp"],
   // valor da cirurgia tem precedência sobre o da consulta
   valor: ["numeric_mm0g5ne5", "numeric_mm1gaysd"],
+  valorConsulta: [],
   obs: ["text_mm0gqshj"],
   atendimento: {
     novosContatos: "numeric_mm0ghk9f",
@@ -163,6 +167,16 @@ export function mappingFromTitles(columns: ColumnMeta[]): Partial<ColumnMapping>
       break;
     }
   }
+
+  // Valor da consulta à parte e sem "gastar" a coluna: num board que só tem
+  // "Valor da Consulta", ela continua sendo também o `valor` (receita), como
+  // antes; aqui só passa a existir a leitura separada da consulta paga.
+  const consulta = columns.find(col => {
+    if (!["numbers", "numeric"].includes(col.type)) return false;
+    const titulo = fold(col.title);
+    return /\bconsulta\b/.test(titulo) && /\b(valor|pre[çc]o)\b/.test(titulo) && !/\b(cirurgia|procedimento)\b/.test(titulo);
+  });
+  if (consulta) found.valorConsulta = [consulta.id];
   return found;
 }
 
@@ -535,6 +549,7 @@ async function fetchBoard(board: BoardRef, opts: FetchBoardsOptions = {}): Promi
         compareceu: pick(cols, map.compareceu),
         statusLead: normalizeStatus(pick(cols, map.statusLead)),
         valor: parseValor(pick(cols, map.valor)),
+        valorConsulta: parseValor(pick(cols, map.valorConsulta)),
         obs: pick(cols, map.obs),
         boardId: board.id,
         boardName,
