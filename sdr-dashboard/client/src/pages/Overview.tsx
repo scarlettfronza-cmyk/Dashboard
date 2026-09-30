@@ -15,6 +15,7 @@ import {
   compareMetrics,
   computeMetrics,
   previousRange,
+  type AtendimentoRecord,
   type DateRange,
   type Lead,
   type Metrics,
@@ -23,6 +24,8 @@ import {
 interface OverviewProps {
   metrics: Metrics | null;
   leads: Lead[];
+  /** Relatório diário: o comparativo com o período anterior usa as mesmas fontes. */
+  atendimentos?: AtendimentoRecord[];
   /** Lista filtrada exibida na tabela; o conjunto completo fica para o comparativo. */
   displayLeads?: Lead[];
   range: DateRange | null;
@@ -32,13 +35,13 @@ interface OverviewProps {
   clientName?: string;
 }
 
-export default function Overview({ metrics, leads, displayLeads, range, loading, error, onRetry, clientName }: OverviewProps) {
+export default function Overview({ metrics, leads, atendimentos = [], displayLeads, range, loading, error, onRetry, clientName }: OverviewProps) {
   // O comparativo com o período anterior só faz sentido com período definido.
   const snapshot = useMemo(() => {
     if (!metrics) return null;
-    const comparison = range ? compareMetrics(metrics, computeMetrics(leads, previousRange(range))) : undefined;
+    const comparison = range ? compareMetrics(metrics, computeMetrics(leads, previousRange(range), atendimentos)) : undefined;
     return buildReportSnapshot(clientName ?? "Todos os clientes", range, metrics, comparison);
-  }, [metrics, leads, range, clientName]);
+  }, [metrics, leads, atendimentos, range, clientName]);
 
   if (error) {
     return (

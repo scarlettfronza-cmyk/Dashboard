@@ -44,6 +44,15 @@ describe("mappingFromTitles", () => {
     expect(m.valor).toEqual(["vc"]);
   });
 
+  it("acha a coluna Social Selling do relatório diário pelo título", () => {
+    const diario: ColumnMeta[] = [
+      { id: "ss", title: "Social Selling", type: "numbers" },
+      { id: "cr", title: "Conversas realizadas", type: "numbers" },
+    ];
+    expect(mappingFromTitles(diario).socialSelling).toEqual(["ss"]);
+    expect(mappingForBoard("diario", COLUMN_PROFILES.ellora, diario).socialSelling).toEqual(["ss"]);
+  });
+
   it("não trata 'Data Consulta Fechada' como data da consulta", () => {
     const mapping = mappingFromTitles(columns);
     expect(mapping.dataConsulta).toEqual(["consulta"]);

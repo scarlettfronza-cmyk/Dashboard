@@ -78,6 +78,12 @@ export function montarTextoRelatorio(d: DadosTextoRelatorio): string {
   );
   blocos.push(agenda.join("\n"));
 
+  // Trabalho de atendimento do relatório diário.
+  const atendimento: string[] = [];
+  if (m.conversasRealizadas > 0) atendimento.push(`💬 Conversas realizadas: ${m.conversasRealizadas.toLocaleString("pt-BR")}`);
+  if (m.socialSelling > 0) atendimento.push(`📲 Social Selling: ${m.socialSelling.toLocaleString("pt-BR")}`);
+  if (atendimento.length) blocos.push(atendimento.join("\n"));
+
   const resultado = [`📥 Leads recebidos: ${m.leadsRecebidos}`, `🤝 Fechamentos: ${m.negociosFechados}`];
   if (m.receitaTotal > 0) {
     resultado.push(`💰 Faturamento: ${formatBRL(m.receitaTotal)}`);

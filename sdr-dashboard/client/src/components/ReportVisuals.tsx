@@ -69,6 +69,13 @@ export function ReportVisuals({ snapshot, compact = false }: { snapshot: ReportS
                 : "nenhuma no período"
           }
         />
+        {/* Do relatório diário: só aparecem quando a clínica tem o diário. */}
+        {(k.conversasRealizadas ?? 0) > 0 && (
+          <Destaque rotulo="Conversas realizadas" valor={k.conversasRealizadas!.toLocaleString("pt-BR")} cor="#ec4899" />
+        )}
+        {(k.socialSelling ?? 0) > 0 && (
+          <Destaque rotulo="Social Selling" valor={k.socialSelling!.toLocaleString("pt-BR")} cor="#a855f7" />
+        )}
       </div>
 
       {/* Métricas de apoio numa tira fina, não em cartões. */}

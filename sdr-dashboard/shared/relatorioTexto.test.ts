@@ -9,6 +9,8 @@ const base: Metrics = {
   agendadasParaDepois: 8,
   consultasPagas: 25,
   receitaConsultas: 17500,
+  conversasRealizadas: 1905,
+  socialSelling: 151,
   negociosFechados: 6,
   negociosPerdidos: 4,
   emNegociacao: 3,
@@ -63,6 +65,13 @@ describe("montarTextoRelatorio", () => {
     expect(texto).toMatch(/Consultas pagas: 25 \(R\$\s17\.500\)/);
     const semConsulta = montarTextoRelatorio({ clienteNome: "Clínica", range, metrics: { ...base, consultasPagas: 0, receitaConsultas: 0 } });
     expect(semConsulta).not.toContain("Consultas pagas");
+  });
+
+  it("inclui conversas realizadas e social selling do diário", () => {
+    const texto = montarTextoRelatorio({ clienteNome: "Clínica", range, metrics: base });
+    expect(texto).toContain("💬 Conversas realizadas: 1.905\n📲 Social Selling: 151");
+    const semDiario = montarTextoRelatorio({ clienteNome: "Clínica", range, metrics: { ...base, conversasRealizadas: 0, socialSelling: 0 } });
+    expect(semDiario).not.toContain("Conversas realizadas");
   });
 
   it("não usa travessão", () => {

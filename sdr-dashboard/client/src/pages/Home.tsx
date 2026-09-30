@@ -414,6 +414,7 @@ export default function Home() {
             <Overview
               metrics={metrics}
               leads={leads}
+              atendimentos={atendimentos}
               displayLeads={leadsDoPeriodo}
               range={range}
               loading={loading}

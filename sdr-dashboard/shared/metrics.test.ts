@@ -261,6 +261,16 @@ describe("computeMetrics", () => {
     expect(m.agendadasParaDepois).toBe(1);
   });
 
+  it("soma conversas realizadas e social selling do diário no período", () => {
+    const dia = (date: string, conversas: number, social?: number) => ({
+      date, novosContatos: 0, novosAds: 0, conversasRealizadas: conversas, consultaAgendada: 0, agendadoAds: 0,
+      procedimentoVendido: 0, socialSelling: social, boardId: "d", clientName: "Dra X", sdrName: "Luana",
+    });
+    const m = computeMetrics([], agosto, [dia("2026-08-02", 159, 14), dia("2026-08-03", 70), dia("2026-09-01", 500, 50)]);
+    expect(m.conversasRealizadas).toBe(229);
+    expect(m.socialSelling).toBe(14);
+  });
+
   it("soma as consultas pagas do período: presença e valor de consulta", () => {
     const leads = [
       lead({ id: "pagou", dataConsulta: "05/08/2026", compareceu: "Sim", valorConsulta: 750 }),

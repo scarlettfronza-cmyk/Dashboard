@@ -41,7 +41,9 @@ export interface ColumnMapping {
   valorConsulta: string[];
   obs: string[];
   /** Colunas numéricas do board de atendimento diário. */
-  atendimento?: Record<keyof Omit<AtendimentoRecord, "date" | "boardId" | "clientName" | "sdrName">, string>;
+  atendimento?: Record<keyof Omit<AtendimentoRecord, "date" | "boardId" | "clientName" | "sdrName" | "socialSelling">, string>;
+  /** "Social Selling" do relatório diário, achado pelo título (não está nos perfis). */
+  socialSelling?: string[];
 }
 
 /** Perfil "Agendamentos" original (board da Bruna e do Dr Lucas Moura). */
@@ -177,6 +179,9 @@ export function mappingFromTitles(columns: ColumnMeta[]): Partial<ColumnMapping>
     return /\bconsulta\b/.test(titulo) && /\b(valor|pre[çc]o)\b/.test(titulo) && !/\b(cirurgia|procedimento)\b/.test(titulo);
   });
   if (consulta) found.valorConsulta = [consulta.id];
+
+  const social = columns.find(col => ["numbers", "numeric"].includes(col.type) && /\bsocial selling\b/.test(fold(col.title)));
+  if (social) found.socialSelling = [social.id];
   return found;
 }
 
@@ -187,7 +192,7 @@ export function mergeMapping(base: ColumnMapping, detected: Partial<ColumnMappin
   for (const campo of campos) {
     const ids = detected[campo];
     if (ids && ids.length > 0) {
-      out[campo] = [...ids, ...base[campo]];
+      out[campo] = [...ids, ...(base[campo] ?? [])];
     }
   }
   return out;
@@ -528,6 +533,7 @@ async function fetchBoard(board: BoardRef, opts: FetchBoardsOptions = {}): Promi
           consultaAgendada: num(at.consultaAgendada),
           agendadoAds: num(at.agendadoAds),
           procedimentoVendido: num(at.procedimentoVendido),
+          socialSelling: map.socialSelling?.[0] ? num(map.socialSelling[0]) : 0,
           boardId: board.id,
           clientName: board.clientName,
           sdrName: board.sdrName ?? "",

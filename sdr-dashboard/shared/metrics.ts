@@ -46,6 +46,8 @@ export interface AtendimentoRecord {
   consultaAgendada: number;
   agendadoAds: number;
   procedimentoVendido: number;
+  /** Ausente nas cópias do Monday anteriores a este campo. */
+  socialSelling?: number;
   boardId: string;
   clientName: string;
   sdrName: string;
@@ -71,6 +73,9 @@ export interface Metrics {
   consultasPagas: number;
   /** Soma do "Valor da Consulta" dessas consultas. */
   receitaConsultas: number;
+  /** Somas do relatório diário no período. */
+  conversasRealizadas: number;
+  socialSelling: number;
   negociosFechados: number;
   negociosPerdidos: number;
   emNegociacao: number;
@@ -428,6 +433,8 @@ export function computeMetrics(
     agendadasParaDepois,
     consultasPagas: pagas.length,
     receitaConsultas: pagas.reduce((sum, l) => sum + (l.valorConsulta ?? 0), 0),
+    conversasRealizadas: registrosDiariosNoPeriodo.reduce((sum, r) => sum + (r.conversasRealizadas || 0), 0),
+    socialSelling: registrosDiariosNoPeriodo.reduce((sum, r) => sum + (r.socialSelling || 0), 0),
     negociosFechados: fechados.length,
     negociosPerdidos: perdidos.length,
     emNegociacao: emNegociacao.length,
@@ -543,6 +550,8 @@ export interface ReportSnapshot {
     agendadasParaDepois?: number;
     consultasPagas?: number;
     receitaConsultas?: number;
+    conversasRealizadas?: number;
+    socialSelling?: number;
     negociosFechados: number;
     negociosPerdidos: number;
     emNegociacao: number;
@@ -581,6 +590,8 @@ export function buildReportSnapshot(
       agendadasParaDepois: metrics.agendadasParaDepois,
       consultasPagas: metrics.consultasPagas,
       receitaConsultas: metrics.receitaConsultas,
+      conversasRealizadas: metrics.conversasRealizadas,
+      socialSelling: metrics.socialSelling,
       negociosFechados: metrics.negociosFechados,
       negociosPerdidos: metrics.negociosPerdidos,
       emNegociacao: metrics.emNegociacao,
