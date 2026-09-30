@@ -1,0 +1,108 @@
+# SDR Dashboard — TODO
+
+## Concluído
+- [x] Explorar boards do Monday.com (Bruna e Luana)
+- [x] Dashboard base com Visão Geral, Agendamentos, Atendimentos, Gestão de Vendas
+- [x] Integração Monday.com com suporte a múltiplos formatos de board
+- [x] Upgrade para fullstack (tRPC + banco de dados + auth)
+- [x] Schema do banco: users, sdrs, clients, chatMessages, aiReports
+- [x] Router tRPC: sdr.me, sdr.clients, sdr.clientPortal, sdr.generateAnalysis, sdr.chat
+
+## Em andamento
+- [x] Tela de login com Manus OAuth
+- [x] Dashboard por SDR (filtragem automática por login)
+- [x] Aba de Chat com IA
+- [x] Aba de Análise com IA (gerar relatório por cliente/período)
+- [x] Portal do cliente (rota /portal/:token)
+- [x] Tela de gestão de clientes (lista de clientes com link do portal)
+- [x] Aplicar migration do banco de dados (tabelas criadas manualmente via SQL)
+- [x] Testar fluxo de login e geração de relatório IA (banco com todas as 7 tabelas criadas e validadas)
+
+## Novas funcionalidades
+- [x] Clicar em cliente na sidebar abre Chat IA contextualizado para aquele cliente
+- [x] Botão "Chat IA" em cada card de cliente na aba Meus Clientes
+- [x] SDRs podem adicionar novos clientes pelo botão + na sidebar (modal com nome + board ID do Monday)
+- [x] Preparar documento de handoff técnico e funcional para continuidade do projeto em outra IA
+- [x] Gerar pacote ZIP seguro do repositório para continuidade técnica com o Claude
+- [x] Importar a versão 3 do dashboard com melhorias de segurança e portal visual
+- [x] Aplicar migração de status/publicação dos relatórios e validar dados existentes
+- [x] Configurar segredos do Monday e URL pública do portal
+- [x] Executar testes, verificação de tipos e revisão visual da versão 3
+- [x] Validar visualmente as telas de dashboard, entrada, painel da gestora e portal do cliente
+- [x] Testar o fluxo de gerar, publicar e abrir relatório de um cliente no portal
+- [x] Confirmar no browser autenticado que o painel da gestora busca boards e vincula clientes sem erro
+- [x] Comparar e importar os ajustes da versão 3.1 sem perder a migração e segredos configurados
+- [x] Validar testes, build e visual do portal de relatórios da versão 3.1
+- [x] Registrar evidências da revisão visual de dashboard, entrada, gestão e portal
+- [x] Registrar o teste do fluxo completo de relatório publicado no portal
+- [x] Registrar a validação das procedures do painel da gestora e do vínculo da Dra Estéfani
+- [x] Validar manualmente na interface da gestora a busca e o vínculo de um novo board real
+- [x] Corrigir o botão de vínculo que permanece desativado após preencher o nome do cliente
+- [x] Corrigir falha de banco ao salvar novo vínculo de cliente pelo painel
+- [x] Remover a ambiguidade entre a busca de boards e o campo de nome do cliente no painel da gestora
+- [x] Importar a versão 3.4 preservando dados, segredos e vínculo da Dra Estéfani
+- [x] Aplicar os ajustes de layout, leitura dinâmica de colunas e nome automático do cliente
+- [x] Validar a migração de múltiplos boards e o vínculo de cliente pelo painel
+- [x] Executar testes, build e revisão visual da versão 3.4
+- [x] Impedir a geração de relatório quando um ou mais boards do cliente não carregarem no Monday
+- [x] Revisar explicitamente o layout compacto, filtros e gráficos da versão 3.4
+- [x] Revisar visualmente as telas de entrada, painel da gestora e portal da versão 3.4
+- [x] Remover o cadastro manual de cliente do fluxo da SDR
+- [x] Identificar automaticamente o cliente a partir dos boards escolhidos
+- [x] Permitir que a gestora atribua boards existentes diretamente à SDR selecionada
+- [x] Validar em teste que cada SDR enxerga somente os clientes atribuídos pela gestora
+- [x] Testar o fluxo integrado de atribuir, transferir e listar clientes por SDR
+- [x] Cobrir em teste a atribuição e transferência entre duas SDRs distintas sem dados reais
+- [x] Configurar uma senha local segura para a conta de gestora da Scarlett
+- [x] Validar o login local da gestora e o fluxo de criação de SDR
+- [x] Importar a versão 3.6 com fila, cache e retentativas para o Monday
+- [x] Validar tratamento de limite de requisições e mensagem de recuperação
+- [x] Executar testes, build e revisão visual da versão 3.6
+- [x] Validar em teste o uso do cache quando o Monday retorna limite de requisições
+- [x] Validar a mensagem de recuperação e o botão de nova tentativa no painel da gestora
+- [x] Testar que o botão de nova tentativa aciona a recarga do catálogo de boards
+- [x] Cobrir em teste a criação de SDR com conta comum e sem clientes atribuídos
+- [x] Validar em teste a procedure de login local da gestora
+- [x] Validar em teste que uma SDR recém-criada recebe dashboard vazio até atribuição da gestora
+- [x] Corrigir redirecionamento da SDR de volta ao login após autenticação
+- [x] Adicionar teste de persistência de sessão local para contas de SDR
+- [x] Bloquear consultas protegidas do dashboard até a sessão da SDR ser confirmada
+- [x] Testar login local de SDR seguido de consulta protegida com o cookie de sessão
+- [ ] Validar no preview que o login de SDR permanece no dashboard
+- [x] Corrigir Agendamentos, Atendimentos e Gestão de Vendas para aplicar o intervalo de datas selecionado no topo
+- [x] Adicionar testes de regressão para o filtro compartilhado nas abas de cliente
+- [x] Alinhar o cabeçalho e a tabela da Visão Geral ao mesmo intervalo de datas selecionado
+- [x] Exibir nas tabelas a data de referência usada pelo filtro de cada aba para evitar aparentes registros fora do período
+- [x] Exibir um botão Atualizar dados evidente em todas as telas de cliente
+- [x] Simplificar o aviso de boards pendentes, explicando que os dados ainda estão sendo copiados do Monday
+- [x] Validar a atualização manual e os estados de carregamento sem reintroduzir spinner infinito
+- [x] Limitar a atualização manual do cliente para encerrar rapidamente após uma falha ou limite do Monday
+- [x] Validar no site publicado os totais de agosto filtrados em Agendamentos, Atendimentos e Gestão de Vendas
+- [x] Testar account.login seguido de sdr.clients usando o cookie sdr_session emitido
+- [x] Corrigir carregamento infinito de dados para SDR com cliente já atribuído
+- [x] Validar que falha de um board não bloqueia os demais dados da SDR
+- [x] Corrigir carregamento infinito do painel da gestora quando o Monday demora ou limita requisições
+- [x] Separar dados locais do banco do carregamento do catálogo e métricas do Monday
+- [x] Exibir estado de recuperação em vez de spinner infinito para gestora e SDR
+- [x] Preparar resumo técnico atualizado do estado do dashboard para compartilhar com o Claude
+- [x] Preparar resumo técnico atualizado do estado do dashboard para compartilhar com o Claude
+- [x] Importar a versão 3.8 preservando contas, clientes e configurações atuais
+- [x] Exibir sidebar e dados locais sem esperar consultas ao Monday
+- [x] Carregar catálogo Monday no painel somente sob demanda
+- [x] Validar estados parciais e de recuperação de dados em gestora e SDR
+- [x] Validar interativamente no preview a carteira da Luana e o painel da gestora com sessão autenticada
+- [x] Comparar o pacote sdr-dashboard-v4.0 com a base v3.8 estabilizada e identificar regressões de segurança ou carregamento
+- [x] Importar os ajustes compatíveis da versão 4.0 sem perder contas, clientes, sessão local, portal seguro e proteção contra relatório parcial
+- [x] Atualizar a cobertura de testes para os comportamentos alterados na versão 4.0
+- [x] Validar tipos, testes, build e preview da versão 4.0 antes de publicar
+- [x] Criar e testar a sincronização periódica dos snapshots do Monday após a publicação da versão 4.0
+- [x] Investigar a divergência de agendamentos e comparecimentos da Dra. Tatiana Patruni no mês atual
+- [x] Preservar como referência validada 6 cirurgias fechadas e R$ 67.900 de receita de consultas pagas da Dra. Tatiana Patruni
+- [x] Corrigir o cálculo de agendamentos e comparecimentos sem alterar fechamentos ou receita corretos
+- [x] Validar a correção da Dra. Tatiana e adicionar teste de regressão com o critério de período aplicável
+- [x] Excluir o canal Indicação ou Indicações dos cálculos de agendamentos e comparecimentos da Dra. Tatiana
+- [x] Confirmar na tela publicada da Dra. Tatiana que agosto mostra 40 agendamentos e 30 comparecimentos
+- [ ] Validar no preview com login autenticado da Luana que a sidebar mostra os 5 clientes imediatamente após entrar
+- [ ] Validar no preview que o login de SDR da Luana permanece no dashboard e não volta para /entrar
+- [x] Resolver a diferença entre a referência de R$ 67.200 e os R$ 67.900 identificados na leitura bruta do Monday, confirmando que R$ 67.900 é a soma das consultas pagas
+- [x] Restaurar como ativos na carteira da Luana os clientes Dra Estéfani Molinar, Dr Jonas Lenzi e Dr. Mansur
