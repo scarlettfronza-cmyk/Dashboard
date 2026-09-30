@@ -349,22 +349,19 @@ export function computeMetrics(
   }
   const clientesComDiario = new Set(Array.from(somaDiarioPorCliente).filter(([, soma]) => soma > 0).map(([chave]) => chave));
   const agendamentosDiarios = Array.from(somaDiarioPorCliente.values()).reduce((sum, soma) => sum + soma, 0);
-  const agendamentosPorLeadSemDiario = agendadosPorLead.filter(lead => !clientesComDiario.has(chaveCliente(lead))).length;
-  // Marcadas no período para depois dele ("2 para outubro"). Agendamento é o
-  // que a SDR FEZ no período: as consultas do período mais essas. No diário
-  // elas já estão somadas ("40, sendo 32 em agosto e 8 para setembro"), então
-  // só entram à parte para os clientes sem diário.
+  // Agendamento conta no mês da "Data de conversão", quando o lead virou
+  // paciente (definição da gestora; sem ela, vale a data da consulta). Desses,
+  // alguns têm a consulta depois do período ("2 para outubro"). No cliente com
+  // diário preenchido vale o total do diário, que já inclui essas.
+  const agendadosNoPeriodo = leads.filter(l => parseDate(l.dataConsulta) && leadInRange(l, "dataConversao", range, "dataConsulta"));
   const marcadasParaDepois = range
-    ? leads.filter(l => {
-        const consulta = parseDate(l.dataConsulta);
-        return Boolean(consulta && consulta > range.to && inRange(parseDate(l.dataConversao), range));
-      })
+    ? agendadosNoPeriodo.filter(l => (parseDate(l.dataConsulta) ?? "") > range.to)
     : [];
+  const semDiario = (lista: Lead[]) => lista.filter(lead => !clientesComDiario.has(chaveCliente(lead))).length;
   const agendadasParaDepois = marcadasParaDepois.length;
-  const paraDepoisSemDiario = marcadasParaDepois.filter(lead => !clientesComDiario.has(chaveCliente(lead))).length;
-  const agendamentos = agendamentosDiarios + agendamentosPorLeadSemDiario + paraDepoisSemDiario;
+  const agendamentos = agendamentosDiarios + semDiario(agendadosNoPeriodo);
   // Base da taxa de comparecimento: só o que podia ter acontecido no período.
-  const baseComparecimento = agendamentosDiarios + agendamentosPorLeadSemDiario;
+  const baseComparecimento = agendamentos - semDiario(marcadasParaDepois);
   // Consulta paga: aconteceu no período (data da consulta + presença) e tem
   // valor. Indicação entra: a exclusão dela vale só para a taxa comercial.
   const pagas = agendadosPorLead.filter(l => compareceuIsPresente(l.compareceu) && (l.valorConsulta ?? 0) > 0);
