@@ -7,7 +7,6 @@
 import { getDb } from "./db";
 import { salesRecords, clients, integrations } from "../drizzle/schema";
 import { chaveDeduplicacao } from "./registrosVendas";
-import { groupNameToPeriodDate } from "./db";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { getSystemSetting } from "./_core/systemRouter";
@@ -162,16 +161,6 @@ export interface ColumnMap {
   statusId?: string;
   closedValueId?: string;
   format: "A" | "B" | "C";
-  /** "data": venda = data de fechamento preenchida. "status": venda = coluna Fechou = sim, no mês do grupo. */
-  regraVenda?: "data" | "status";
-}
-
-/** Textos da coluna de status que significam "fechou". */
-export function statusSignificaFechou(texto: string | null | undefined): boolean {
-  const t = (texto ?? "").toLowerCase().trim();
-  if (!t) return false;
-  return t === "sim" || t.includes("negocio fechado") || t.includes("negócio fechado") || t.includes("feito")
-    || t.includes("cirurgia realizada") || t.includes("fechado") || t.includes("fechou") || t.includes("pago") || t.includes("venda");
 }
 
 export function detectColumnMap(columns: BoardColumn[]): ColumnMap {
@@ -391,24 +380,15 @@ function parseItem(item: MondayItem, colMap: ColumnMap): ParsedRecord {
   const surgeryText = colMap.surgeryValueId ? getColumnText(item, colMap.surgeryValueId) : null;
   const surgeryValue = parseNumberValue(surgeryText);
 
-  // Regra padrão: venda = data de fechamento preenchida, e só isso — a
-  // gestora quer a receita do mês em que o cliente pagou. Regra "status",
-  // escolhida por cliente para quadros organizados por grupo do mês (sem
-  // data de fechamento): venda = coluna "Fechou" = sim, e o mês é o do
-  // grupo ("Agendamentos setembro 2026") — gravado como data de fechamento
-  // no meio do mês, para o resto do sistema não precisar de caso especial.
+  // Venda = data de fechamento preenchida, e só isso. Status, "compareceu"
+  // ou valor de procedimento não contam: cada vendedora preenche o quadro
+  // de um jeito, e a gestora quer a receita do mês em que o cliente pagou —
+  // o procedimento pode ser semanas depois.
+  const closed = !!conversionDate;
   const closedValText = colMap.closedValueId ? getColumnText(item, colMap.closedValueId) : null;
   const closedValue: number | null = closedValText != null ? parseNumberValue(closedValText) : null;
-  let closed = !!conversionDate;
-  let dataVenda = conversionDate;
-  if (colMap.regraVenda === "status") {
-    const statusText = colMap.statusId ? getColumnText(item, colMap.statusId) : null;
-    closed = statusSignificaFechou(statusText);
-    if (closed && !dataVenda) dataVenda = groupNameToPeriodDate(item.group?.title) ?? consultDate ?? undefined;
-    if (!closed) dataVenda = undefined;
-  }
 
-  return { patientName, consultDate, conversionDate: dataVenda, acquisitionChannel, consultValue, surgeryValue, closedValue, closed };
+  return { patientName, consultDate, conversionDate, acquisitionChannel, consultValue, surgeryValue, closedValue, closed };
 }
 
 // Main sync function
@@ -451,9 +431,6 @@ export type ConfigMonday = {
   colunaValorVendaId?: string | null;
   colunaDataConsultaId?: string | null;
   colunaValorConsultaId?: string | null;
-  /** "data" (padrão) ou "status": ver ColumnMap.regraVenda. */
-  regraVenda?: "data" | "status" | null;
-  colunaStatusId?: string | null;
 };
 
 export async function lerConfigMonday(clientId: number): Promise<ConfigMonday> {
@@ -463,7 +440,6 @@ export async function lerConfigMonday(clientId: number): Promise<ConfigMonday> {
   return {
     colunaDataFechamentoId: cfg.colunaDataFechamentoId ?? null, colunaValorVendaId: cfg.colunaValorVendaId ?? null,
     colunaDataConsultaId: cfg.colunaDataConsultaId ?? null, colunaValorConsultaId: cfg.colunaValorConsultaId ?? null,
-    regraVenda: cfg.regraVenda ?? null, colunaStatusId: cfg.colunaStatusId ?? null,
   };
 }
 
@@ -492,7 +468,6 @@ export async function listarColunasMonday(clientId: number, boardId: string) {
       valorVendaId: detectado.closedValueId ?? detectado.surgeryValueId ?? null,
       dataConsultaId: detectado.consultDateId ?? null,
       valorConsultaId: detectado.consultValueId ?? null,
-      statusId: detectado.statusId ?? null,
     },
   };
 }
@@ -522,8 +497,6 @@ export async function syncMondayBoard(
   if (cfg.colunaValorVendaId) { colMap.closedValueId = cfg.colunaValorVendaId; colMap.format = "C"; }
   if (cfg.colunaDataConsultaId) { colMap.consultDateId = cfg.colunaDataConsultaId; colMap.consultDatePriority = 99; }
   if (cfg.colunaValorConsultaId) colMap.consultValueId = cfg.colunaValorConsultaId;
-  colMap.regraVenda = cfg.regraVenda === "status" ? "status" : "data";
-  if (cfg.colunaStatusId) colMap.statusId = cfg.colunaStatusId;
   console.log(`[Monday Sync] Detected format: ${colMap.format} | conversionDateId: ${colMap.conversionDateId ?? 'NONE'} (priority: ${colMap.conversionDatePriority ?? 0}) | consultDateId: ${colMap.consultDateId ?? 'NONE'}`);
   // Debug: always log all date columns to help diagnose missing dates
   const dateCols = columns.filter(c => c.type === 'date');

@@ -384,8 +384,6 @@ export default function ManagerClientSettings() {
   const [colValorVenda, setColValorVenda] = useState<string>("");
   const [colDataConsulta, setColDataConsulta] = useState<string>("");
   const [colValorConsulta, setColValorConsulta] = useState<string>("");
-  const [regraVenda, setRegraVenda] = useState<"data" | "status">("data");
-  const [colStatus, setColStatus] = useState<string>("");
   const listarColunas = trpc.monday.listarColunasAsManager.useMutation({
     onSuccess: (r) => {
       setColunasMonday(r.colunas);
@@ -394,8 +392,6 @@ export default function ManagerClientSettings() {
       setColValorVenda(cfg?.colunaValorVendaId ?? r.detectado.valorVendaId ?? "");
       setColDataConsulta(cfg?.colunaDataConsultaId ?? r.detectado.dataConsultaId ?? "");
       setColValorConsulta(cfg?.colunaValorConsultaId ?? r.detectado.valorConsultaId ?? "");
-      setRegraVenda(cfg?.regraVenda === "status" ? "status" : "data");
-      setColStatus(cfg?.colunaStatusId ?? r.detectado.statusId ?? "");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -884,26 +880,8 @@ export default function ManagerClientSettings() {
               </p>
               {colunasMonday && (
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="sm:col-span-2 flex flex-col gap-1 text-xs" style={{ color: "oklch(0.65 0.010 240)" }}>
-                    Como reconhecer uma venda
-                    <select value={regraVenda} onChange={(e) => setRegraVenda(e.target.value as "data" | "status")}
-                      className="text-sm rounded-md px-2 py-2 outline-none" style={{ background: "oklch(0.16 0.012 255)", border: "1px solid oklch(0.26 0.012 255)", color: "#fff" }}>
-                      <option value="data">Data de fechamento preenchida (venda no mês dessa data)</option>
-                      <option value="status">Coluna "Fechou" = Sim (venda no mês do grupo, ex.: "Agendamentos setembro 2026")</option>
-                    </select>
-                  </label>
-                  {regraVenda === "status" && (
-                    <label className="sm:col-span-2 flex flex-col gap-1 text-xs" style={{ color: "oklch(0.65 0.010 240)" }}>
-                      Coluna de status ("Fechou")
-                      <select value={colStatus} onChange={(e) => setColStatus(e.target.value)}
-                        className="text-sm rounded-md px-2 py-2 outline-none" style={{ background: "oklch(0.16 0.012 255)", border: "1px solid oklch(0.26 0.012 255)", color: "#fff" }}>
-                        <option value="">— automático (pelo nome) —</option>
-                        {colunasMonday.filter((c) => c.type === "status" || c.type === "color" || c.type === "checkbox" || c.type === "dropdown").map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-                      </select>
-                    </label>
-                  )}
                   <label className="flex flex-col gap-1 text-xs" style={{ color: "oklch(0.65 0.010 240)" }}>
-                    {regraVenda === "status" ? "Coluna da data de fechamento (opcional; sem ela vale o mês do grupo)" : "Coluna da data de fechamento (pagamento)"}
+                    Coluna da data de fechamento (pagamento)
                     <select value={colDataFechamento} onChange={(e) => setColDataFechamento(e.target.value)}
                       className="text-sm rounded-md px-2 py-2 outline-none" style={{ background: "oklch(0.16 0.012 255)", border: "1px solid oklch(0.26 0.012 255)", color: "#fff" }}>
                       <option value="">— automático (pelo nome) —</option>
@@ -936,10 +914,10 @@ export default function ManagerClientSettings() {
                   </label>
                   <div className="sm:col-span-2 flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-[11px]" style={{ color: "oklch(0.45 0.010 240)" }}>
-                      {regraVenda === "data" && colunasMonday.filter((c) => c.type === "date").length === 0 && "Este quadro não tem coluna de data — crie uma \"Data de fechamento\" no Monday, ou use a regra \"Fechou = Sim\"."}
+                      {colunasMonday.filter((c) => c.type === "date").length === 0 && "Este quadro não tem coluna de data — crie uma \"Data de fechamento\" no Monday para as vendas contarem."}
                     </span>
                     <ActionBtn color="oklch(0.72 0.18 145)" disabled={salvarColunas.isPending}
-                      onClick={() => salvarColunas.mutate({ clientId, managerToken: token!, colunaDataFechamentoId: colDataFechamento || null, colunaValorVendaId: colValorVenda || null, colunaDataConsultaId: colDataConsulta || null, colunaValorConsultaId: colValorConsulta || null, regraVenda, colunaStatusId: colStatus || null })}>
+                      onClick={() => salvarColunas.mutate({ clientId, managerToken: token!, colunaDataFechamentoId: colDataFechamento || null, colunaValorVendaId: colValorVenda || null, colunaDataConsultaId: colDataConsulta || null, colunaValorConsultaId: colValorConsulta || null })}>
                       {salvarColunas.isPending ? "Salvando..." : "Salvar e sincronizar"}
                     </ActionBtn>
                   </div>
