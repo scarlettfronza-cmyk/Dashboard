@@ -64,15 +64,18 @@ export function montarTextoRelatorio(d: DadosTextoRelatorio): string {
   // Agenda primeiro: é o que a SDR controla e o que a clínica quer ver
   // (pedido da SDR, no formato "40 agendadas, sendo 32 comparecidas...").
   const mes = mesDoPeriodo(d.range);
-  const agenda = [`📅 Consultas agendadas: ${m.agendamentos}`];
+  // Agendamentos = feitos no período, incluindo os marcados para depois.
+  const noPeriodo = m.agendamentos - m.agendadasParaDepois;
+  const agenda = [
+    m.agendadasParaDepois > 0
+      ? `📅 Consultas agendadas: ${m.agendamentos} (${noPeriodo} ${mes ? `em ${mes.mes}` : "no período"} e ${m.agendadasParaDepois} para ${mes ? mes.seguinte : "depois"})`
+      : `📅 Consultas agendadas: ${m.agendamentos}`,
+  ];
   agenda.push(
-    m.agendamentos > 0
-      ? `✅ Comparecimentos: ${m.comparecimentos} (${pct(m.taxaComparecimento)} dos agendados)`
+    noPeriodo > 0
+      ? `✅ Comparecimentos: ${m.comparecimentos} (${pct(m.taxaComparecimento)} das consultas ${mes ? `de ${mes.mes}` : "do período"})`
       : `✅ Comparecimentos: ${m.comparecimentos}`,
   );
-  if (m.agendadasParaDepois > 0) {
-    agenda.push(`🗓️ Já marcadas para ${mes ? mes.seguinte : "depois do período"}: ${m.agendadasParaDepois}`);
-  }
   blocos.push(agenda.join("\n"));
 
   const resultado = [`📥 Leads recebidos: ${m.leadsRecebidos}`, `🤝 Fechamentos: ${m.negociosFechados}`];

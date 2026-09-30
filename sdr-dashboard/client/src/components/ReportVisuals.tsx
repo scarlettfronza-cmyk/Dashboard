@@ -33,18 +33,14 @@ export function ReportVisuals({ snapshot, compact = false }: { snapshot: ReportS
           valor={k.agendamentos}
           cor="#3b82f6"
           delta={c?.agendamentos}
-          detalhe={
-            k.agendadasParaDepois
-              ? `${k.agendadasParaDepois} já ${k.agendadasParaDepois === 1 ? "marcada" : "marcadas"} para ${proximoPeriodo(snapshot)}`
-              : undefined
-          }
+          detalhe={divisaoAgenda(snapshot)}
         />
         <Destaque
           rotulo="Comparecimentos"
           valor={k.comparecimentos}
           cor="#22c55e"
           delta={c?.comparecimentos}
-          detalhe={k.agendamentos > 0 ? `${pct(k.taxaComparecimento)} dos agendados` : undefined}
+          detalhe={k.agendamentos > 0 ? `${pct(k.taxaComparecimento)} das consultas ${mesDoSnapshot(snapshot) ? `de ${mesDoSnapshot(snapshot)!.mes}` : "do período"}` : undefined}
         />
         <Destaque rotulo="Fechados" valor={k.negociosFechados} cor="#16a34a" delta={c?.negociosFechados} />
         <Destaque
@@ -110,10 +106,18 @@ const Apoio = ({ rotulo, valor }: { rotulo: string; valor: string | number }) =>
 
 const pct = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
-function proximoPeriodo(snapshot: ReportSnapshot): string {
+function mesDoSnapshot(snapshot: ReportSnapshot) {
   const { from, to } = snapshot.periodo;
-  const mes = from && to ? mesDoPeriodo({ from, to }) : null;
-  return mes ? mes.seguinte : "depois do período";
+  return from && to ? mesDoPeriodo({ from, to }) : null;
+}
+
+/** "10 em setembro · 2 para outubro": agendamentos feitos no período, divididos. */
+function divisaoAgenda(snapshot: ReportSnapshot): string | undefined {
+  const k = snapshot.kpis;
+  const depois = k.agendadasParaDepois ?? 0;
+  if (!depois) return undefined;
+  const mes = mesDoSnapshot(snapshot);
+  return `${k.agendamentos - depois} ${mes ? `em ${mes.mes}` : "no período"} · ${depois} para ${mes ? mes.seguinte : "depois"}`;
 }
 
 /** Cartão grande da agenda: número em evidência e uma linha de contexto. */

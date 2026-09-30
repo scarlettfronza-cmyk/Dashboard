@@ -231,6 +231,36 @@ describe("computeMetrics", () => {
     expect(computeMetrics(leads, null).agendadasParaDepois).toBe(0);
   });
 
+  it("agendamentos são os feitos no período: consultas do mês mais as marcadas para o seguinte", () => {
+    // Caso do Dr. Jonas em setembro: 10 consultas em setembro (8 com presença)
+    // e 2 marcadas em setembro para outubro. O card mostra 12; a taxa de
+    // comparecimento usa só as 10 que podiam ter acontecido.
+    const setembro = { from: "2026-09-01", to: "2026-09-30" };
+    const consultasSetembro = Array.from({ length: 10 }, (_, i) =>
+      lead({ id: `set-${i}`, dataConversao: "20/08/2026", dataConsulta: `${String(i + 1).padStart(2, "0")}/09/2026`, compareceu: i < 8 ? "Sim" : "Não" }),
+    );
+    const paraOutubro = [
+      lead({ id: "out-1", dataConversao: "29/09/2026", dataConsulta: "02/10/2026" }),
+      lead({ id: "out-2", dataConversao: "29/09/2026", dataConsulta: "02/10/2026" }),
+    ];
+    const m = computeMetrics([...consultasSetembro, ...paraOutubro], setembro);
+    expect(m.agendamentos).toBe(12);
+    expect(m.agendadasParaDepois).toBe(2);
+    expect(m.comparecimentos).toBe(8);
+    expect(m.taxaComparecimento).toBe(80);
+  });
+
+  it("no cliente com diário, as marcadas para depois já estão no total do diário", () => {
+    const diario = [{
+      date: "2026-08-15", novosContatos: 0, novosAds: 0, conversasRealizadas: 0, consultaAgendada: 40,
+      agendadoAds: 0, procedimentoVendido: 0, boardId: "diario", clientName: "Dra X", sdrName: "Luana",
+    }];
+    const paraSetembro = lead({ id: "set", dataConversao: "20/08/2026", dataConsulta: "05/09/2026" });
+    const m = computeMetrics([paraSetembro], agosto, diario);
+    expect(m.agendamentos).toBe(40);
+    expect(m.agendadasParaDepois).toBe(1);
+  });
+
   it("soma as consultas pagas do período: presença e valor de consulta", () => {
     const leads = [
       lead({ id: "pagou", dataConsulta: "05/08/2026", compareceu: "Sim", valorConsulta: 750 }),
