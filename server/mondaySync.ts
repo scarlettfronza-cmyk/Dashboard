@@ -196,16 +196,22 @@ export function detectColumnMap(columns: BoardColumn[]): ColumnMap {
       map.surgeryValueId = col.id;
       if (map.format !== "C") map.format = "B";
     }
-    // Coluna da data da consulta, por prioridade:
-    //   3 (maior): a coluna que diz "consulta"/"avaliação" no nome — é a data em
-    //     que a pessoa foi atendida, e é isso que o relatório chama de consulta.
-    //   2: "Data de conversão" — quando o lead agendou. Só vale se o quadro não
-    //     tem coluna de consulta (antes ela vencia, e as consultas caíam no dia
-    //     do agendamento em vez do dia do atendimento).
+    // Coluna que diz de que mês é a consulta, por prioridade (definição da
+    // gestora: consulta = mês em que o lead virou paciente):
+    //   3 (maior): "Data de conversão" — quando o lead converteu.
+    //   2: "Data da consulta/avaliação" — dia do atendimento, se não houver a de cima.
     //   1: "Data" genérica do Monday.
+    // A escolha por cliente em "Como contar vendas" vence tudo isso.
     {
       let consultPriority = 0;
       if (
+        title === "data de conversao" ||
+        title === "data de conversão" ||
+        title === "data conversao" ||
+        title === "data conversão"
+      ) {
+        consultPriority = 3;
+      } else if (
         title === "data da consulta" ||
         title === "data consulta" ||
         title === "data de consulta" ||
@@ -213,13 +219,6 @@ export function detectColumnMap(columns: BoardColumn[]): ColumnMap {
         title === "data da avaliacao" ||
         title === "data avaliação" ||
         title === "data avaliacao"
-      ) {
-        consultPriority = 3;
-      } else if (
-        title === "data de conversao" ||
-        title === "data de conversão" ||
-        title === "data conversao" ||
-        title === "data conversão"
       ) {
         consultPriority = 2;
       } else if (

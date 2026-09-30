@@ -897,7 +897,7 @@ export default function ManagerClientSettings() {
                     </select>
                   </label>
                   <label className="flex flex-col gap-1 text-xs" style={{ color: "oklch(0.65 0.010 240)" }}>
-                    Coluna da data da consulta (atendimento)
+                    Coluna da data da consulta (quando o lead virou paciente)
                     <select value={colDataConsulta} onChange={(e) => setColDataConsulta(e.target.value)}
                       className="text-sm rounded-md px-2 py-2 outline-none" style={{ background: "oklch(0.16 0.012 255)", border: "1px solid oklch(0.26 0.012 255)", color: "#fff" }}>
                       <option value="">— automático (pelo nome) —</option>

@@ -923,7 +923,7 @@ export default function ManagerDashboard() {
                                   </tfoot>
                                 </table>
                                 <p className="text-[11px] text-muted-foreground px-4 py-2 border-t border-border">
-                                  Regra: <b>consulta</b> conta pela data da consulta. <b>Venda</b> conta só quando a <b>data de fechamento</b> está preenchida, no mês dessa data — status, "compareceu" ou valor de procedimento sem data não contam. Qual coluna é a data de fechamento se escolhe na tela do cliente (Monday).
+                                  Regra: <b>consulta</b> conta pela data de conversão (quando o lead virou paciente). <b>Venda</b> conta só quando a <b>data de fechamento</b> está preenchida, no mês dessa data — status, "compareceu" ou valor de procedimento sem data não contam. Qual coluna é a data de fechamento se escolhe na tela do cliente (Monday).
                                 </p>
                               </div>
                             )}
