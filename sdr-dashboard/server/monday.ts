@@ -115,21 +115,33 @@ export interface ColumnMeta {
  * O tipo da coluna desempata: só uma coluna de data vira data, só uma numérica
  * vira valor. Os perfis por ID continuam como reserva.
  */
-const TITLE_RULES: { campo: keyof Omit<ColumnMapping, "atendimento">; padrao: RegExp; tipos: string[] }[] = [
+type CampoMapeavel = keyof Omit<ColumnMapping, "atendimento">;
+
+/**
+ * Regras em ordem de especificidade. Quando o mesmo campo aparece em mais de
+ * uma regra, a primeira que encontra coluna vence e as seguintes, mais
+ * genéricas, não sobrescrevem. Sem isso, um board com "Valor da Consulta" e
+ * "Valor da cirurgia" dependia da ordem das colunas no Monday.
+ */
+const TITLE_RULES: { campo: CampoMapeavel; padrao: RegExp; exclui?: RegExp; tipos: string[] }[] = [
   { campo: "canal", padrao: /\b(canal|origem|aquisi|de onde|midia|m[ií]dia|fonte)\b/, tipos: ["color", "status", "dropdown", "text"] },
   { campo: "procedimento", padrao: /\b(procedimento|cirurgia|servi[çc]o|tratamento)\b/, tipos: ["color", "status", "dropdown", "text"] },
   { campo: "compareceu", padrao: /\b(compareceu|comparecimento|presen[çc]a|veio)\b/, tipos: ["color", "status", "dropdown"] },
   { campo: "statusLead", padrao: /\b(status|situa[çc][ãa]o|est[áa]gio|etapa)\b/, tipos: ["color", "status", "dropdown"] },
+  // Valor: cirurgia/procedimento, depois consulta, depois genérico.
+  { campo: "valor", padrao: /\b(cirurgia|procedimento)\b/, tipos: ["numbers", "numeric"] },
+  { campo: "valor", padrao: /\bconsulta\b/, tipos: ["numbers", "numeric"] },
   { campo: "valor", padrao: /\b(valor|pre[çc]o|ticket|receita|or[çc]amento)\b/, tipos: ["numbers", "numeric"] },
-  { campo: "dataConsulta", padrao: /\b(consulta|agendamento|agendada)\b/, tipos: ["date"] },
-  { campo: "dataFechamento", padrao: /\b(fechamento|fechado|fechou|venda)\b/, tipos: ["date"] },
-  { campo: "dataProcedimento", padrao: /\b(procedimento|cirurgia)\b/, tipos: ["date"] },
+  // "Data Consulta Fechada" é data de fechamento, não de consulta.
+  { campo: "dataConsulta", padrao: /\b(consulta|agendamento|agendada)\b/, exclui: /\bfechad[oa]\b/, tipos: ["date"] },
+  { campo: "dataFechamento", padrao: /\b(fechamento|fechado|fechada|fechou|venda)\b/, tipos: ["date"] },
+  { campo: "dataProcedimento", padrao: /\b(procedimento|cirurgia)\b/, exclui: /\bfechad[oa]\b/, tipos: ["date"] },
   { campo: "dataConversao", padrao: /\b(convers[ãa]o|entrada|chegou|primeiro contato|lead|contato)\b/, tipos: ["date"] },
   { campo: "obs", padrao: /\b(obs|observa|coment|anota|nota)\b/, tipos: ["text", "long-text", "long_text"] },
 ];
 
 function fold(text: string): string {
-  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
 export function mappingFromTitles(columns: ColumnMeta[]): Partial<ColumnMapping> {
@@ -137,10 +149,14 @@ export function mappingFromTitles(columns: ColumnMeta[]): Partial<ColumnMapping>
   const usados = new Set<string>();
 
   for (const regra of TITLE_RULES) {
+    // Uma regra específica anterior já escolheu a coluna deste campo.
+    if (found[regra.campo]) continue;
     for (const col of columns) {
       if (usados.has(col.id)) continue;
       if (!regra.tipos.includes(col.type)) continue;
-      if (!regra.padrao.test(fold(col.title))) continue;
+      const titulo = fold(col.title);
+      if (!regra.padrao.test(titulo)) continue;
+      if (regra.exclui?.test(titulo)) continue;
 
       found[regra.campo] = [col.id];
       usados.add(col.id);
@@ -153,11 +169,61 @@ export function mappingFromTitles(columns: ColumnMeta[]): Partial<ColumnMapping>
 /** Títulos vencem; o perfil por ID cobre o que a detecção não achou. */
 export function mergeMapping(base: ColumnMapping, detected: Partial<ColumnMapping>): ColumnMapping {
   const out: ColumnMapping = { ...base };
-  const campos = Object.keys(detected) as Array<keyof Omit<ColumnMapping, "atendimento">>;
+  const campos = Object.keys(detected) as CampoMapeavel[];
   for (const campo of campos) {
     const ids = detected[campo];
     if (ids && ids.length > 0) {
       out[campo] = [...ids, ...base[campo]];
+    }
+  }
+  return out;
+}
+
+// ─── Critério comercial por board ────────────────────────────────────────────
+
+/**
+ * Colunas definidas pela agência para um board específico, pelo TÍTULO exato
+ * (sem acento e sem diferença de maiúsculas). Vale por último, depois da
+ * detecção por título e do perfil, e SUBSTITUI a lista do campo: o valor de
+ * consulta não entra como reserva quando o critério é o valor da cirurgia.
+ *
+ * Fechamento continua exigindo status "Negócio fechado" (shared/metrics.ts);
+ * aqui só se escolhe qual data posiciona o fechamento no período e qual
+ * coluna é a receita.
+ *
+ * Origem: auditoria de agosto de 2026 da carteira da Luana, conferida contra
+ * os totais oficiais da gestora (handoff técnico, seção 10.3).
+ */
+export const BOARD_COLUMN_OVERRIDES: Record<string, Partial<Record<CampoMapeavel, string[]>>> = {
+  // Dra. Tatiana Patruni: 6 fechamentos e R$ 67.200 em agosto.
+  "18406678106": { dataFechamento: ["Data da consulta"], valor: ["Valor da cirurgia"] },
+  // Dr. Jonas Lenzi: 1 fechamento e R$ 8.000 em agosto.
+  "18406696056": { dataFechamento: ["Data da consulta"], valor: ["Valor do procedimento"] },
+  // Dr. Mansur: 1 fechamento e R$ 28.000 em agosto.
+  "18406692406": { dataFechamento: ["Data da consulta"], valor: ["Valor da cirurgia"] },
+  // Dr. Lucas Moura: 2 fechamentos e R$ 33.000 em agosto.
+  "18418032339": { dataFechamento: ["Data da consulta"], valor: ["Valor do procedimento"] },
+};
+
+/**
+ * Mapeamento final de um board: títulos, depois perfil por ID, depois o
+ * critério comercial do board. Um título do critério que não existe no board
+ * não apaga o campo; mantém o mapeamento detectado e avisa no log.
+ */
+export function mappingForBoard(boardId: string, base: ColumnMapping, columns: ColumnMeta[]): ColumnMapping {
+  const merged = mergeMapping(base, mappingFromTitles(columns));
+  const override = BOARD_COLUMN_OVERRIDES[boardId];
+  if (!override) return merged;
+
+  const idPorTitulo = new Map(columns.map(col => [fold(col.title), col.id]));
+  const out: ColumnMapping = { ...merged };
+  for (const campo of Object.keys(override) as CampoMapeavel[]) {
+    const titulos = override[campo] ?? [];
+    const ids = titulos.map(t => idPorTitulo.get(fold(t))).filter((id): id is string => Boolean(id));
+    if (ids.length > 0) {
+      out[campo] = ids;
+    } else {
+      console.warn(`[monday] board ${boardId}: coluna ${titulos.join(" / ")} não encontrada para ${campo}; usando detecção automática.`);
     }
   }
   return out;
@@ -432,7 +498,7 @@ async function fetchBoard(board: BoardRef, opts: FetchBoardsOptions = {}): Promi
 
       if (!mapping) {
         profile = detectProfile(Object.keys(cols));
-        mapping = mergeMapping(COLUMN_PROFILES[profile], mappingFromTitles(boardData.columns ?? []));
+        mapping = mappingForBoard(board.id, COLUMN_PROFILES[profile], boardData.columns ?? []);
       }
       const map = mapping;
 
