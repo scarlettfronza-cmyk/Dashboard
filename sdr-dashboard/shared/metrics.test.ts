@@ -109,9 +109,7 @@ describe("computeMetrics", () => {
   it("conta cada métrica pela sua própria data de referência", () => {
     const m = computeMetrics(leads, agosto);
     expect(m.leadsRecebidos).toBe(3); // exclui o de julho e o sem data
-    // agendamento pela data de conversão: o convertido em julho é de julho,
-    // mesmo com a consulta em agosto
-    expect(m.agendamentos).toBe(1);
+    expect(m.agendamentos).toBe(2);
     expect(m.comparecimentos).toBe(1);
     // o fechamento de agosto entra mesmo tendo sido convertido em julho
     expect(m.negociosFechados).toBe(2);
@@ -233,16 +231,14 @@ describe("computeMetrics", () => {
     expect(computeMetrics(leads, null).agendadasParaDepois).toBe(0);
   });
 
-  it("agendamentos contam pela data de conversão, com as marcadas para o mês seguinte à parte", () => {
+  it("agendamentos são os feitos no período: consultas do mês mais as marcadas para o seguinte", () => {
     // Caso do Dr. Jonas em setembro: 10 consultas em setembro (8 com presença)
     // e 2 marcadas em setembro para outubro. O card mostra 12; a taxa de
     // comparecimento usa só as 10 que podiam ter acontecido.
     const setembro = { from: "2026-09-01", to: "2026-09-30" };
     const consultasSetembro = Array.from({ length: 10 }, (_, i) =>
-      lead({ id: `set-${i}`, dataConversao: "02/09/2026", dataConsulta: `${String(i + 10).padStart(2, "0")}/09/2026`, compareceu: i < 8 ? "Sim" : "Não" }),
+      lead({ id: `set-${i}`, dataConversao: "20/08/2026", dataConsulta: `${String(i + 1).padStart(2, "0")}/09/2026`, compareceu: i < 8 ? "Sim" : "Não" }),
     );
-    // Convertido em agosto com consulta em setembro: é agendamento de agosto.
-    const deAgosto = lead({ id: "ago", dataConversao: "28/08/2026", dataConsulta: "01/09/2026", compareceu: "Sim" });
     const paraOutubro = [
       lead({ id: "out-1", dataConversao: "29/09/2026", dataConsulta: "02/10/2026" }),
       lead({ id: "out-2", dataConversao: "29/09/2026", dataConsulta: "02/10/2026" }),
@@ -252,9 +248,6 @@ describe("computeMetrics", () => {
     expect(m.agendadasParaDepois).toBe(2);
     expect(m.comparecimentos).toBe(8);
     expect(m.taxaComparecimento).toBe(80);
-
-    expect(computeMetrics([...consultasSetembro, ...paraOutubro, deAgosto], setembro).agendamentos).toBe(12);
-    expect(computeMetrics([deAgosto], agosto).agendamentos).toBe(1);
   });
 
   it("no cliente com diário, as marcadas para depois já estão no total do diário", () => {
