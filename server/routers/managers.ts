@@ -754,6 +754,45 @@ export const managersRouter = router({
       await dbConn.update(clients).set({ reportTheme: input.reportTheme }).where(eq(clients.id, input.clientId));
       return { success: true };
     }),
+  // ── Registros comerciais do período: o que cada linha do CRM somou ─────────
+  // Responde "por que a receita do painel não bate com o Monday?" linha a
+  // linha, com a mesma seleção que gera os totais.
+  registrosComerciaisAsManager: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number(), from: z.string(), to: z.string() }))
+    .query(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const { getSalesRowsForPeriod, valorDoFechamento, getClosingReferenceDate } = await import("../db");
+      const dados = await getClientById(input.clientId);
+      const { allRows, consultaRows, fechamentoRows } = await getSalesRowsForPeriod(input.clientId, input.from, input.to, dados?.salesChannelFilter ?? null);
+      const consultaIds = new Set(consultaRows.map((r) => r.id));
+      const fechamentoIds = new Set(fechamentoRows.map((r) => r.id));
+      const linhas = allRows
+        .filter((r) => consultaIds.has(r.id) || fechamentoIds.has(r.id))
+        .map((r) => ({
+          id: r.id,
+          paciente: r.patientName ?? "(sem nome)",
+          grupo: r.groupName ?? null,
+          canal: r.acquisitionChannel ?? null,
+          dataConsulta: r.consultDate ? new Date(r.consultDate).toISOString().slice(0, 10) : null,
+          dataFechamento: r.conversionDate ? new Date(r.conversionDate).toISOString().slice(0, 10) : null,
+          dataReferenciaFechamento: (() => { const d = getClosingReferenceDate(r); return d ? d.toISOString().slice(0, 10) : null; })(),
+          valorConsulta: parseFloat(String(r.consultValue ?? "0")) || 0,
+          valorProcedimento: parseFloat(String(r.surgeryValue ?? "0")) || 0,
+          valorFechado: r.closedValue != null ? parseFloat(String(r.closedValue)) || 0 : null,
+          fechou: Boolean(r.closed),
+          contaConsulta: consultaIds.has(r.id),
+          contaFechamento: fechamentoIds.has(r.id),
+          somaFechamento: fechamentoIds.has(r.id) ? valorDoFechamento(r) : 0,
+        }))
+        .sort((a, b) => (b.dataConsulta ?? "").localeCompare(a.dataConsulta ?? ""));
+      return {
+        linhas,
+        totalRegistros: allRows.length,
+        semData: allRows.filter((r) => !r.consultDate && !r.conversionDate && !r.groupName).length,
+        filtroCanal: dados?.salesChannelFilter ?? null,
+      };
+    }),
+
   // ── Alertas de saldo no Telegram: estado, teste e conferência manual ──────
   statusTelegram: publicProcedure
     .input(z.object({ token: z.string() }))

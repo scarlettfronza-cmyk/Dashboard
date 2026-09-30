@@ -278,6 +278,7 @@ export default function ManagerDashboard() {
 
   // Modals
   const [showNewClient, setShowNewClient] = useState(false);
+  const [mostrarRegistros, setMostrarRegistros] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string } | null>(null);
 
@@ -367,6 +368,12 @@ export default function ManagerDashboard() {
   );
 
   const generateReportMutation = trpc.managers.generateReportAsManager.useMutation();
+
+  // Conferência linha a linha do que entrou na receita do período.
+  const registros = trpc.managers.registrosComerciaisAsManager.useQuery(
+    { token: token!, clientId: activeClient!, from: dateRange.from, to: dateRange.to },
+    { enabled: !!activeClient && !!token && activeTab === "kpis" && mostrarRegistros }
+  );
 
   const createClient = trpc.managers.createClientAsManager.useMutation({
     onSuccess: () => { toast.success("Cliente criado!"); setShowNewClient(false); setNewClientName(""); refetchClients(); },
@@ -854,6 +861,75 @@ export default function ManagerDashboard() {
                           )}
                         </>
                       )}
+
+                      {/* Registros comerciais: o que cada linha do Monday somou nos totais */}
+                      <div className="rounded-xl border border-border overflow-hidden">
+                        <button onClick={() => setMostrarRegistros((m) => !m)} className="w-full px-4 py-2.5 flex items-center justify-between gap-3 text-left hover:bg-muted/40 transition-colors">
+                          <div>
+                            <p className="text-xs font-semibold">Registros comerciais do período · o que entrou na conta</p>
+                            <p className="text-[11px] text-muted-foreground">Cada linha do Monday e se ela contou como consulta, fechamento, os dois ou nenhum. Os totais aqui são os mesmos dos cartões.</p>
+                          </div>
+                          <span className="text-xs text-muted-foreground flex-shrink-0">{mostrarRegistros ? "esconder ▲" : "ver ▼"}</span>
+                        </button>
+                        {mostrarRegistros && (
+                          <div className="border-t border-border">
+                            {registros.isLoading ? (
+                              <p className="text-xs text-muted-foreground px-4 py-3">Carregando registros...</p>
+                            ) : registros.error ? (
+                              <p className="text-xs px-4 py-3" style={{ color: "#ff8a94" }}>{registros.error.message}</p>
+                            ) : registros.data && registros.data.linhas.length === 0 ? (
+                              <p className="text-xs text-muted-foreground px-4 py-3">Nenhum registro do Monday cai neste período. {registros.data.totalRegistros > 0 ? `A base tem ${registros.data.totalRegistros} registros no total` : "A base está vazia"}{registros.data.semData > 0 ? `, ${registros.data.semData} sem data nenhuma (ficam fora de qualquer período)` : ""}.</p>
+                            ) : registros.data && (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
+                                  <thead>
+                                    <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                      <th className="text-left px-4 py-2 font-semibold">Paciente</th>
+                                      <th className="text-left px-3 py-2 font-semibold">Data consulta</th>
+                                      <th className="text-right px-3 py-2 font-semibold">Valor consulta</th>
+                                      <th className="text-left px-3 py-2 font-semibold">Data fechamento</th>
+                                      <th className="text-right px-3 py-2 font-semibold">Valor procedimento</th>
+                                      <th className="text-left px-3 py-2 font-semibold">Fechou?</th>
+                                      <th className="text-left px-3 py-2 font-semibold">Conta como</th>
+                                      <th className="text-right px-4 py-2 font-semibold">Somou</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {registros.data.linhas.map((r) => {
+                                      const como = r.contaConsulta && r.contaFechamento ? "consulta + fechamento" : r.contaConsulta ? "consulta" : r.contaFechamento ? "fechamento" : "—";
+                                      return (
+                                        <tr key={r.id} className="border-t border-border/60">
+                                          <td className="px-4 py-1.5 max-w-[240px] truncate" title={r.paciente}>{r.paciente}{r.canal ? <span className="text-muted-foreground"> · {r.canal}</span> : null}</td>
+                                          <td className="px-3 py-1.5 whitespace-nowrap">{r.dataConsulta ? formatDate(r.dataConsulta) : <span className="text-muted-foreground">{r.grupo ? `grupo: ${r.grupo}` : "—"}</span>}</td>
+                                          <td className="px-3 py-1.5 text-right whitespace-nowrap">{r.valorConsulta ? formatCurrency(r.valorConsulta) : "—"}</td>
+                                          <td className="px-3 py-1.5 whitespace-nowrap">{r.dataFechamento ? formatDate(r.dataFechamento) : r.contaFechamento && r.dataReferenciaFechamento ? <span className="text-muted-foreground" title="sem data de fechamento no Monday; usa a data da consulta">≈ {formatDate(r.dataReferenciaFechamento)}</span> : "—"}</td>
+                                          <td className="px-3 py-1.5 text-right whitespace-nowrap">{r.valorFechado ? formatCurrency(r.valorFechado) : r.valorProcedimento ? formatCurrency(r.valorProcedimento) : "—"}</td>
+                                          <td className="px-3 py-1.5" style={{ color: r.fechou ? "#34d399" : undefined }}>{r.fechou ? "sim" : "não"}</td>
+                                          <td className="px-3 py-1.5 whitespace-nowrap">{como}</td>
+                                          <td className="px-4 py-1.5 text-right whitespace-nowrap">{formatCurrency((r.contaConsulta ? r.valorConsulta : 0) + r.somaFechamento)}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                  <tfoot>
+                                    <tr className="border-t border-border font-semibold">
+                                      <td className="px-4 py-2" colSpan={2}>{registros.data.linhas.filter((r) => r.contaConsulta).length} consultas · {registros.data.linhas.filter((r) => r.contaFechamento).length} fechamentos</td>
+                                      <td className="px-3 py-2 text-right whitespace-nowrap">{formatCurrency(registros.data.linhas.reduce((s, r) => s + (r.contaConsulta ? r.valorConsulta : 0), 0))}</td>
+                                      <td />
+                                      <td className="px-3 py-2 text-right whitespace-nowrap">{formatCurrency(registros.data.linhas.reduce((s, r) => s + r.somaFechamento, 0))}</td>
+                                      <td colSpan={2} className="px-3 py-2 text-muted-foreground font-normal">{registros.data.filtroCanal ? `filtro de canal: ${registros.data.filtroCanal}` : ""}</td>
+                                      <td className="px-4 py-2 text-right whitespace-nowrap">{formatCurrency(registros.data.linhas.reduce((s, r) => s + (r.contaConsulta ? r.valorConsulta : 0) + r.somaFechamento, 0))}</td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                                <p className="text-[11px] text-muted-foreground px-4 py-2 border-t border-border">
+                                  Regra: <b>consulta</b> conta pela data da consulta. <b>Fechamento</b> conta quando a linha está marcada como fechada — data de fechamento preenchida, status de fechado ou, sem coluna de status, valor do procedimento maior que zero — e a data de fechamento (ou, sem ela, a da consulta) cai no período.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       {/* Charts */}
                       {trendData && trendData.length > 0 && (

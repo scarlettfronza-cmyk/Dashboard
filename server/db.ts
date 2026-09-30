@@ -212,17 +212,27 @@ export function getClosingReferenceDate(record: {
   return null;
 }
 
-export async function getSalesForPeriod(clientId: number, _from?: string, _to?: string, salesChannelFilter?: string | null) {
+/** Valor que um fechamento soma: valor fechado quando existe, senão o do procedimento. */
+export function valorDoFechamento(r: { closedValue?: unknown; surgeryValue?: unknown }): number {
+  const cv = r.closedValue != null ? parseFloat(String(r.closedValue)) : null;
+  const sv = parseFloat(String(r.surgeryValue ?? "0"));
+  const v = (cv !== null && !isNaN(cv) && cv > 0) ? cv : sv;
+  return isNaN(v) ? 0 : v;
+}
+
+/**
+ * As linhas do CRM que entram na conta de um período — separadas em
+ * consultas (pela data da consulta) e fechamentos (pela data de fechamento,
+ * senão a da consulta, senão o mês do grupo). É a base dos totais e da
+ * tabela de conferência do painel, para os dois nunca divergirem.
+ */
+export async function getSalesRowsForPeriod(clientId: number, _from?: string, _to?: string, salesChannelFilter?: string | null) {
   const db = await getDb();
-  if (!db) return { consultas: 0, fechamentos: 0, totalEmVendas: 0, totalCirurgias: 0, totalConsultas: 0, hasData: false };
+  if (!db) return { allRows: [] as never[], consultaRows: [] as never[], fechamentoRows: [] as never[] };
 
   // Fetch ALL records for this client
   const allRows = await db.select().from(salesRecords)
     .where(eq(salesRecords.clientId, clientId));
-
-  if (allRows.length === 0) {
-    return { consultas: 0, fechamentos: 0, totalEmVendas: 0, totalCirurgias: 0, totalConsultas: 0, hasData: false };
-  }
 
   // Filtros separados para consultas e fechamentos:
   // - Consultas: filtrar por consultDate quando disponível.
@@ -270,20 +280,23 @@ export async function getSalesForPeriod(clientId: number, _from?: string, _to?: 
     fechamentoRows = fechamentoRows.filter(byChannel);
   }
 
+  return { allRows, consultaRows, fechamentoRows };
+}
+
+export async function getSalesForPeriod(clientId: number, _from?: string, _to?: string, salesChannelFilter?: string | null) {
+  const { allRows, consultaRows, fechamentoRows } = await getSalesRowsForPeriod(clientId, _from, _to, salesChannelFilter);
+  if (allRows.length === 0) {
+    return { consultas: 0, fechamentos: 0, totalEmVendas: 0, totalCirurgias: 0, totalConsultas: 0, hasData: false };
+  }
+
   // Total em consultas = soma do Valor da Consulta de todos os agendamentos do período
   const totalEmVendas = consultaRows.reduce((sum, r) => {
     const v = parseFloat(String((r as any).consultValue ?? "0"));
     return sum + (isNaN(v) ? 0 : v);
   }, 0);
 
-  // Total cirurgias = soma dos fechamentos filtrados por conversionDate
-  // Usa closedValue quando disponível (ex: Majestic), fallback surgeryValue
-  const totalCirurgias = fechamentoRows.reduce((sum, r) => {
-    const cv = (r as any).closedValue != null ? parseFloat(String((r as any).closedValue)) : null;
-    const sv = parseFloat(String(r.surgeryValue ?? "0"));
-    const v = (cv !== null && !isNaN(cv) && cv > 0) ? cv : sv;
-    return sum + (isNaN(v) ? 0 : v);
-  }, 0);
+  // Total cirurgias = soma dos fechamentos do período (valor fechado ou do procedimento)
+  const totalCirurgias = fechamentoRows.reduce((sum, r) => sum + valorDoFechamento(r), 0);
 
   const totalConsultas = totalEmVendas;
 
