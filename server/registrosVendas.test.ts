@@ -10,14 +10,14 @@ describe("chaveDeduplicacao", () => {
     expect(a).toBe(b);
     expect(chaveDeduplicacao({ ...base, conversionDate: new Date(2026, 8, 1) })).not.toBe(a);
   });
-  it("sem data de conversão: linhas idênticas viram uma; qualquer diferença separa", () => {
+  it("sem data de fechamento: mesma pessoa no mesmo dia é a mesma consulta, mesmo com valores diferentes", () => {
     expect(chaveDeduplicacao(base)).toBe(chaveDeduplicacao({ ...base, patientName: "MARIA SILVA" }));
+    expect(chaveDeduplicacao(base)).toBe(chaveDeduplicacao({ ...base, consultValue: "350.00", surgeryValue: "9000" }));
     expect(chaveDeduplicacao(base)).not.toBe(chaveDeduplicacao({ ...base, consultDate: new Date(2026, 7, 11) }));
-    expect(chaveDeduplicacao(base)).not.toBe(chaveDeduplicacao({ ...base, consultValue: "350.00" }));
-    expect(chaveDeduplicacao(base)).not.toBe(chaveDeduplicacao({ ...base, closed: true }));
   });
-  it("sem nenhuma data ainda deduplica por nome e valores", () => {
+  it("sem nenhuma data, só linhas idênticas se juntam", () => {
     const s = { ...base, consultDate: null };
     expect(chaveDeduplicacao(s)).toBe(chaveDeduplicacao({ ...s }));
+    expect(chaveDeduplicacao(s)).not.toBe(chaveDeduplicacao({ ...s, consultValue: "1" }));
   });
 });
