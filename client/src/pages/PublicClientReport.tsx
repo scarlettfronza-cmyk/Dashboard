@@ -311,6 +311,29 @@ export default function PublicClientReport() {
               t={theme}
             />
 
+            {/* Leitura do período logo depois dos números principais; fotos e
+                gráficos vêm em seguida, para quem quiser se aprofundar. */}
+            {leitura.analise.length > 0 && (
+              <section>
+                <Eyebrow accentColor={accentColor}>Análise</Eyebrow>
+                <Statement t={theme}>O que os números dizem.</Statement>
+                <Texto paragrafos={leitura.analise} t={theme} />
+              </section>
+            )}
+
+            <section>
+              <Eyebrow accentColor={accentColor}>Recomendação</Eyebrow>
+              <Statement t={theme}>Para onde olhar agora.</Statement>
+              <Destaque paragrafos={leitura.recomendacao} accentColor={accentColor} t={theme} />
+            </section>
+
+            {clientInfo.proximosPassos && (
+              <section>
+                <Eyebrow accentColor={accentColor}>Próximos passos</Eyebrow>
+                <Texto paragrafos={[clientInfo.proximosPassos]} t={theme} />
+              </section>
+            )}
+
             {clientInfo.igUsername && (igInsightsLoading || postsLoading) && (
               <div className="grid gap-3 md:grid-cols-3">
                 {[...Array(3)].map((_, i) => <div key={i} className="h-28 rounded-xl animate-pulse" style={{ background: theme.bgInput }} />)}
@@ -363,27 +386,6 @@ export default function PublicClientReport() {
                   </ResponsiveContainer>
                 </div>
               </Bloco>
-            )}
-
-            {leitura.analise.length > 0 && (
-              <section>
-                <Eyebrow accentColor={accentColor}>Análise</Eyebrow>
-                <Statement t={theme}>O que os números dizem.</Statement>
-                <Texto paragrafos={leitura.analise} t={theme} />
-              </section>
-            )}
-
-            <section>
-              <Eyebrow accentColor={accentColor}>Recomendação</Eyebrow>
-              <Statement t={theme}>Para onde olhar agora.</Statement>
-              <Destaque paragrafos={leitura.recomendacao} accentColor={accentColor} t={theme} />
-            </section>
-
-            {clientInfo.proximosPassos && (
-              <section>
-                <Eyebrow accentColor={accentColor}>Próximos passos</Eyebrow>
-                <Texto paragrafos={[clientInfo.proximosPassos]} t={theme} />
-              </section>
             )}
 
             {publicCreativesData?.creatives?.length > 0 && (
