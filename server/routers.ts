@@ -1367,6 +1367,7 @@ const mondayRouter = router({
       clientId: z.number(), managerToken: z.string(),
       colunaDataFechamentoId: z.string().nullable(), colunaValorVendaId: z.string().nullable(),
       colunaDataConsultaId: z.string().nullable().optional(), colunaValorConsultaId: z.string().nullable().optional(),
+      regraVenda: z.enum(["data", "status"]).optional(), colunaStatusId: z.string().nullable().optional(),
     }))
     .mutation(async ({ input }) => {
       await verifyManagerOwnsClient(input.managerToken, input.clientId);
@@ -1374,6 +1375,7 @@ const mondayRouter = router({
       await salvarConfigMonday(input.clientId, {
         colunaDataFechamentoId: input.colunaDataFechamentoId, colunaValorVendaId: input.colunaValorVendaId,
         colunaDataConsultaId: input.colunaDataConsultaId ?? null, colunaValorConsultaId: input.colunaValorConsultaId ?? null,
+        regraVenda: input.regraVenda ?? "data", colunaStatusId: input.colunaStatusId ?? null,
       });
       return { success: true };
     }),
