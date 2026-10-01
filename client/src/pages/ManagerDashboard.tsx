@@ -58,7 +58,11 @@ function formatNumber(v: number) { return new Intl.NumberFormat("pt-BR").format(
 function formatNumberShort(v: number) { if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`; if (v >= 1000) return `${(v / 1000).toFixed(1)}K`; return String(v); }
 function formatPercent(v: number) { return `${v.toFixed(2)}%`; }
 function formatTime(ms: number) { const s = Math.round(ms / 1000); if (s < 60) return `${s}s`; return `${Math.floor(s / 60)}m${s % 60}s`; }
-function formatDate(iso: string) { return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }); }
+// "2026-09-01" é um dia, não um instante: lido como UTC virava 31/08 à noite no Brasil.
+function formatDate(iso: string) {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
 function getDefaultRange(): DateRange {
   const now = new Date();
   return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
