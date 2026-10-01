@@ -405,6 +405,13 @@ export interface SyncResult {
   format?: "A" | "B" | "C";
   boardName?: string;
   error?: string;
+  /** Títulos das colunas que a sincronização usou (para a gestora conferir). */
+  colunasUsadas?: { dataFechamento: string | null; valorVenda: string | null; dataConsulta: string | null; valorConsulta: string | null };
+}
+
+function tituloColuna(columns: BoardColumn[], id: string | undefined): string | null {
+  if (!id) return null;
+  return columns.find((c) => c.id === id)?.title ?? `(coluna ${id} não existe mais)`;
 }
 
 export interface SyncOptions {
@@ -665,5 +672,11 @@ export async function syncMondayBoard(
     totalCirurgias,
     format: colMap.format,
     boardName: `Board ${boardId}`,
+    colunasUsadas: {
+      dataFechamento: tituloColuna(columns, colMap.conversionDateId),
+      valorVenda: tituloColuna(columns, colMap.format === "C" ? colMap.closedValueId : colMap.surgeryValueId),
+      dataConsulta: tituloColuna(columns, colMap.consultDateId),
+      valorConsulta: tituloColuna(columns, colMap.consultValueId),
+    },
   };
 }

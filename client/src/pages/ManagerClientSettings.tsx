@@ -160,6 +160,10 @@ export default function ManagerClientSettings() {
   const [syncingMonday, setSyncingMonday] = useState(false);
   const [mondaySyncStart, setMondaySyncStart] = useState("");
   const [mondaySyncEnd, setMondaySyncEnd] = useState("");
+  const [resultadoSync, setResultadoSync] = useState<{
+    imported: number; closed: number; totalCirurgias: number; totalConsultas: number;
+    colunasUsadas?: { dataFechamento: string | null; valorVenda: string | null; dataConsulta: string | null; valorConsulta: string | null };
+  } | null>(null);
 
   // CAPI state
   const [metaPixelId, setMetaPixelId] = useState("");
@@ -410,7 +414,10 @@ export default function ManagerClientSettings() {
       if (data.reason === "no_token") toast.warning("Token do Monday.com não configurado.");
       else if (data.reason === "no_board_id") toast.warning("Este cliente não tem Board ID configurado.");
       else if (data.reason) toast.warning("Sync não realizado: " + data.reason);
-      else toast.success(`Sincronizado! ${data.imported} registros importados.`);
+      else {
+        toast.success(`Sincronizado! ${data.imported} registros · ${data.closed} venda${data.closed === 1 ? "" : "s"} encontrada${data.closed === 1 ? "" : "s"}.`);
+        setResultadoSync({ imported: data.imported, closed: data.closed, totalCirurgias: data.totalCirurgias, totalConsultas: data.totalConsultas, colunasUsadas: data.colunasUsadas });
+      }
       mondayStatus.refetch();
       uploadInfo.refetch();
       setSyncingMonday(false);
@@ -840,6 +847,27 @@ export default function ManagerClientSettings() {
                     </span>
                   )}
                 </span>
+              </div>
+            )}
+
+            {resultadoSync && (
+              <div className="rounded-lg px-3 py-2.5 text-xs space-y-1" style={{ background: "oklch(0.18 0.010 240)", border: "1px solid oklch(0.28 0.010 240)", color: "oklch(0.70 0.010 240)" }}>
+                <div style={{ color: "oklch(0.85 0.010 240)" }}>
+                  Última sincronização leu <strong>{resultadoSync.imported}</strong> linhas do quadro e encontrou{" "}
+                  <strong>{resultadoSync.closed}</strong> venda{resultadoSync.closed === 1 ? "" : "s"} (data de fechamento preenchida), somando{" "}
+                  <strong>{resultadoSync.totalCirurgias.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>.
+                </div>
+                {resultadoSync.colunasUsadas && (
+                  <div>
+                    Colunas lidas — data de fechamento: <strong>{resultadoSync.colunasUsadas.dataFechamento ?? "nenhuma"}</strong> · valor da venda:{" "}
+                    <strong>{resultadoSync.colunasUsadas.valorVenda ?? "nenhuma"}</strong> · data da consulta:{" "}
+                    <strong>{resultadoSync.colunasUsadas.dataConsulta ?? "nenhuma"}</strong> · valor da consulta:{" "}
+                    <strong>{resultadoSync.colunasUsadas.valorConsulta ?? "nenhuma"}</strong>
+                  </div>
+                )}
+                {resultadoSync.closed === 0 && (
+                  <div style={{ color: "oklch(0.80 0.15 60)" }}>Nenhuma venda encontrada: confira em "Como contar vendas" se a coluna de data de fechamento é a que a vendedora preenche.</div>
+                )}
               </div>
             )}
 
