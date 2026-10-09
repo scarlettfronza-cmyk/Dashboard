@@ -29,6 +29,8 @@ export type ClienteCarteira = {
   investimento: number;
   leads: number;
   campanhas: CampanhaCarteira[];
+  /** Preenchido na varredura matinal; ausente na consulta só de CPL. */
+  varredura?: Varredura;
 };
 
 export type Situacao = "acima" | "sem_leads" | "atencao" | "dentro" | "sem_investimento" | "sem_meta" | "erro";
@@ -121,11 +123,14 @@ export function acoesPorCampanha(campanhas: CampanhaCarteira[], meta: number): A
 export type LinhaCarteira = ClienteCarteira & { avaliacao: Avaliacao };
 
 /** Avalia todos e ordena do mais urgente para o mais tranquilo; empate por CPL maior. */
+const PESO_COR: Record<CorSemaforo, number> = { vermelho: 0, amarelo: 1, verde: 2, cinza: 3 };
+
 export function avaliarCarteira(clientes: ClienteCarteira[], meta: number): LinhaCarteira[] {
   return clientes
     .map((c) => ({ ...c, avaliacao: avaliarCliente(c, meta) }))
     .sort((a, b) =>
-      PRIORIDADE[a.avaliacao.situacao] - PRIORIDADE[b.avaliacao.situacao]
+      PESO_COR[semaforo(a).cor] - PESO_COR[semaforo(b).cor]
+      || PRIORIDADE[a.avaliacao.situacao] - PRIORIDADE[b.avaliacao.situacao]
       || (b.avaliacao.cpl ?? 0) - (a.avaliacao.cpl ?? 0)
       || b.investimento - a.investimento);
 }
@@ -134,4 +139,79 @@ export function resumoCarteira(linhas: LinhaCarteira[]): Record<Situacao, number
   const r: Record<Situacao, number> = { acima: 0, sem_leads: 0, atencao: 0, dentro: 0, sem_investimento: 0, sem_meta: 0, erro: 0 };
   for (const l of linhas) r[l.avaliacao.situacao]++;
   return r;
+}
+
+// ── Varredura matinal ────────────────────────────────────────────────────────
+// O playbook pede: todas as contas vistas todos os dias, com cor. A cor sai
+// do que já consultamos (CPL do mês, saldo, status da conta, gasto recente)
+// mais o diário de decisões. Vermelho = agir hoje; amarelo = investigar e
+// programar teste; verde = manter. Cinza = nada rodando.
+
+export type Varredura = {
+  /** Gasto de ontem, em reais. */
+  gastoOntem: number;
+  /** Gasto dos últimos 7 dias (até ontem) e dos 7 anteriores a esses. */
+  gasto7: number;
+  gasto7Anteriores: number;
+  /** Campanhas com gasto ontem. */
+  campanhasAtivas: number;
+  /** Saldo pré-pago em reais; null para conta pós-paga ou sem leitura. */
+  saldo: number | null;
+  /** Gravidade do status da conta na Meta, com o rótulo para exibir. */
+  conta: { gravidade: "ok" | "aviso" | "critico"; rotulo: string } | null;
+  decisoes: { pendente: number; vencida: number };
+};
+
+export const SALDO_BAIXO = 200;
+export const SALDO_CRITICO = 50;
+/** Queda de gasto entre semanas que merece olhar (fração). */
+export const QUEDA_GASTO_ALERTA = 0.4;
+
+export type CorSemaforo = "vermelho" | "amarelo" | "verde" | "cinza";
+
+export const ROTULO_SEMAFORO: Record<CorSemaforo, string> = {
+  vermelho: "Agir hoje", amarelo: "Investigar", verde: "Manter", cinza: "Parado",
+};
+
+export type Semaforo = { cor: CorSemaforo; motivos: string[] };
+
+export function semaforo(l: LinhaCarteira): Semaforo {
+  const vermelho: string[] = [];
+  const amarelo: string[] = [];
+  const s = l.avaliacao.situacao;
+  const v = l.varredura;
+
+  if (s === "acima") vermelho.push(`CPL ${pct(l.avaliacao.desvio ?? 0)} acima da meta`);
+  if (s === "sem_leads") vermelho.push("gastou sem gerar lead");
+  if (s === "atencao") amarelo.push("CPL perto do limite");
+  if (s === "erro") amarelo.push("falha ao consultar o Meta");
+
+  if (v) {
+    if (v.conta && v.conta.gravidade === "critico") vermelho.push(`conta: ${v.conta.rotulo.toLowerCase()}`);
+    else if (v.conta && v.conta.gravidade === "aviso") amarelo.push(`conta: ${v.conta.rotulo.toLowerCase()}`);
+    if (v.saldo != null && v.saldo <= SALDO_CRITICO) vermelho.push(`saldo ${brl(v.saldo)}`);
+    else if (v.saldo != null && v.saldo <= SALDO_BAIXO) amarelo.push(`saldo ${brl(v.saldo)}`);
+    if (v.decisoes.vencida > 0) vermelho.push(`${v.decisoes.vencida} ${v.decisoes.vencida === 1 ? "decisão vencida" : "decisões vencidas"}`);
+    if (v.gastoOntem === 0 && v.gasto7 > 0) vermelho.push("não gastou ontem");
+    else if (v.gasto7Anteriores > 0 && v.gasto7 < v.gasto7Anteriores * (1 - QUEDA_GASTO_ALERTA)) {
+      amarelo.push(`gasto caiu ${pct((1 - v.gasto7 / v.gasto7Anteriores) * 100)} na semana`);
+    }
+  }
+
+  if (vermelho.length) return { cor: "vermelho", motivos: [...vermelho, ...amarelo] };
+  if (amarelo.length) return { cor: "amarelo", motivos: amarelo };
+  if (s === "sem_investimento" || s === "sem_meta") return { cor: "cinza", motivos: [] };
+  return { cor: "verde", motivos: [] };
+}
+
+export function resumoSemaforo(linhas: LinhaCarteira[]): Record<CorSemaforo, number> {
+  const r: Record<CorSemaforo, number> = { vermelho: 0, amarelo: 0, verde: 0, cinza: 0 };
+  for (const l of linhas) r[semaforo(l).cor]++;
+  return r;
+}
+
+/** Variação do gasto semanal em %, ou null sem base de comparação. */
+export function variacaoSemanal(v: Varredura): number | null {
+  if (v.gasto7Anteriores <= 0) return null;
+  return ((v.gasto7 - v.gasto7Anteriores) / v.gasto7Anteriores) * 100;
 }

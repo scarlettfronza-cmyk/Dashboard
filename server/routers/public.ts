@@ -2,8 +2,8 @@ import { z } from "zod";
 import { jwtVerify } from "jose";
 import { router, publicProcedure } from "../_core/trpc";
 import { getDb } from "../db";
-import { clients, integrations, managerClients, publicReportAccessLogs } from "../../drizzle/schema";
-import { eq, and } from "drizzle-orm";
+import { clients, integrations, managerClients, publicReportAccessLogs, decisoes } from "../../drizzle/schema";
+import { eq, and, desc } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { getIntegration, getClientById } from "../db";
 import { fetchClientKpis } from "../routers";
@@ -116,7 +116,19 @@ export const publicRouter = router({
       const hasMetaAds = clientIntegrations.some(i => i.provider === "meta_token" && i.adAccountId);
       const igIntegration = clientIntegrations.find(i => i.provider === "instagram_oauth" && i.metaIgUserId)
         ?? clientIntegrations.find(i => i.provider === "meta_token" && i.metaIgUserId);
+
+      // Diário de decisões: só ação e resultado das marcadas como visíveis.
+      // "Ajustes" = concluídas nos últimos 45 dias; "próximos passos" = abertas.
+      const marcadas = await db.select({ acao: decisoes.acao, resultado: decisoes.resultado, concluidaEm: decisoes.concluidaEm, prazo: decisoes.prazo })
+        .from(decisoes).where(and(eq(decisoes.clientId, client.id), eq(decisoes.noRelatorio, true)))
+        .orderBy(desc(decisoes.createdAt)).limit(40);
+      const limite = Date.now() - 45 * 86_400_000;
+      const ajustes = marcadas
+        .filter((d) => d.concluidaEm && new Date(d.concluidaEm).getTime() >= limite)
+        .map((d) => ({ acao: d.acao, resultado: d.resultado ?? null }));
+      const proximosPassos = marcadas.filter((d) => !d.concluidaEm).map((d) => ({ acao: d.acao, prazo: d.prazo ?? null }));
       return {
+        ajustes, proximosPassos,
         id: client.id,
         name: client.name,
         hasMetaAds,

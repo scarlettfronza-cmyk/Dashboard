@@ -1,12 +1,15 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb, getIntegration, upsertIntegration } from "../db";
-import { managers, managerClients, clients, integrations, salesRecords, snapshots, reportConfig, reportChatHistory, leadAdMatches, capiEvents, creativeAnalyses, creativeBriefs, creativeAssets, beforeAfterPairs, beforeAfterCreatives } from "../../drizzle/schema";
+import { managers, managerClients, clients, integrations, salesRecords, snapshots, reportConfig, reportChatHistory, leadAdMatches, capiEvents, creativeAnalyses, creativeBriefs, creativeAssets, beforeAfterPairs, beforeAfterCreatives, decisoes } from "../../drizzle/schema";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { TRPCError } from "@trpc/server";
-import { fetchActiveCreatives, listAdAccounts, listInstagramProfiles, verifyAdAccountAccess, validateMetaToken } from "../metaApi";
+import { fetchActiveCreatives, fetchAdAccountBudget, fetchDailySpend, listAdAccounts, listInstagramProfiles, verifyAdAccountAccess, validateMetaToken } from "../metaApi";
+import { descreverStatus } from "../statusContaMeta";
+import { janelaVarredura, resumirGasto } from "../varredura";
+import { resumoDecisoes } from "@shared/decisoes";
 import { getClientById, getSalesForPeriod, getSnapshotsByClientId, getSnapshotsInRange } from "../db";
 import { calculateMappingReadiness } from "../intelligence";
 import { calculateOpportunityRanking } from "../opportunityRanking";
@@ -21,7 +24,7 @@ import { encryptSecret } from "../secretCipher";
 import { getManagerJwtSecret } from "../managerAuthSecret";
 import { getProfileListingToken, isPendingInstagramSelection, requireAccessibleInstagramProfile } from "../instagramOAuthSelection";
 import { getSystemSetting } from "../_core/systemRouter";
-import { CHAVE_TOKEN_AGENCIA } from "../metaTokenResolver";
+import { CHAVE_TOKEN_AGENCIA, resolverToken } from "../metaTokenResolver";
 import { getLeadsForClient, getTopPostsForClient } from "./crm";
 import { buildClientAdAccountIds } from "../adAccounts";
 
@@ -827,8 +830,81 @@ export const managersRouter = router({
   // ── Carteira inteira num período: CPL de cada cliente e de cada campanha ──
   // Consulta os clientes em paralelo (poucos por vez: cada um bate na API do
   // Meta). Falha em um cliente vira uma linha "erro", não derruba a tela.
+  // ── Diário de decisões (sinal → hipótese → ação → prazo → resultado) ─────
+  listarDecisoes: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number() }))
+    .query(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      return db.select().from(decisoes).where(eq(decisoes.clientId, input.clientId)).orderBy(desc(decisoes.createdAt));
+    }),
+
+  criarDecisao: publicProcedure
+    .input(z.object({
+      token: z.string(), clientId: z.number(),
+      sinal: z.string().trim().min(1).max(2000), hipotese: z.string().trim().max(2000).optional(),
+      acao: z.string().trim().min(1).max(2000), prazo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+      noRelatorio: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { managerId } = await verifyManagerJwt(input.token);
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.insert(decisoes).values({
+        clientId: input.clientId, managerId,
+        sinal: input.sinal, hipotese: input.hipotese || null, acao: input.acao,
+        prazo: input.prazo ?? null, noRelatorio: input.noRelatorio ?? true,
+      });
+      return { ok: true };
+    }),
+
+  concluirDecisao: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number(), id: z.number(), resultado: z.string().trim().max(2000).optional() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.update(decisoes).set({ concluidaEm: new Date(), resultado: input.resultado || null })
+        .where(and(eq(decisoes.id, input.id), eq(decisoes.clientId, input.clientId)));
+      return { ok: true };
+    }),
+
+  reabrirDecisao: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number(), id: z.number() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.update(decisoes).set({ concluidaEm: null, resultado: null })
+        .where(and(eq(decisoes.id, input.id), eq(decisoes.clientId, input.clientId)));
+      return { ok: true };
+    }),
+
+  alternarDecisaoNoRelatorio: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number(), id: z.number(), noRelatorio: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.update(decisoes).set({ noRelatorio: input.noRelatorio })
+        .where(and(eq(decisoes.id, input.id), eq(decisoes.clientId, input.clientId)));
+      return { ok: true };
+    }),
+
+  excluirDecisao: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number(), id: z.number() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      await db.delete(decisoes).where(and(eq(decisoes.id, input.id), eq(decisoes.clientId, input.clientId)));
+      return { ok: true };
+    }),
+
   visaoCarteira: publicProcedure
-    .input(z.object({ token: z.string(), from: z.string(), to: z.string() }))
+    .input(z.object({ token: z.string(), from: z.string(), to: z.string(), varredura: z.boolean().optional() }))
     .query(async ({ input }) => {
       const { managerId } = await verifyManagerJwt(input.token);
       const db = await getDb();
@@ -837,8 +913,44 @@ export const managersRouter = router({
         .where(eq(managerClients.managerId, managerId));
       const ids = vinculos.map((v) => v.clientId);
       if (!ids.length) return { clientes: [] as import("@shared/carteira").ClienteCarteira[] };
-      const lista = await db.select({ id: clients.id, name: clients.name }).from(clients).where(inArray(clients.id, ids));
+      const lista = await db.select({ id: clients.id, name: clients.name, isPrePaid: clients.isPrePaid }).from(clients).where(inArray(clients.id, ids));
       const { fetchClientKpis } = await import("../routers");
+
+      // Varredura matinal: gasto diário, saldo, status da conta e decisões
+      // por cliente, além do CPL do período.
+      const tokenAgencia = input.varredura ? await getSystemSetting(CHAVE_TOKEN_AGENCIA) : null;
+      const decisoesPorCliente = new Map<number, Array<{ prazo: string | null; concluidaEm: Date | null }>>();
+      if (input.varredura) {
+        const rows = await db.select({ clientId: decisoes.clientId, prazo: decisoes.prazo, concluidaEm: decisoes.concluidaEm })
+          .from(decisoes).where(inArray(decisoes.clientId, ids));
+        for (const r of rows) {
+          const l = decisoesPorCliente.get(r.clientId) ?? [];
+          l.push({ prazo: r.prazo ?? null, concluidaEm: r.concluidaEm ?? null });
+          decisoesPorCliente.set(r.clientId, l);
+        }
+      }
+      const varrer = async (c: { id: number; isPrePaid: number | null }): Promise<import("@shared/carteira").Varredura> => {
+        const rd = resumoDecisoes(decisoesPorCliente.get(c.id) ?? []);
+        const base: import("@shared/carteira").Varredura = {
+          gastoOntem: 0, gasto7: 0, gasto7Anteriores: 0, campanhasAtivas: 0, saldo: null, conta: null,
+          decisoes: { pendente: rd.pendente, vencida: rd.vencida },
+        };
+        const integ = await getIntegration(c.id, "meta_token");
+        const { token, adAccountId } = resolverToken(tokenAgencia, integ);
+        if (!token || !adAccountId) return base;
+        const contaPrincipal = adAccountId.split(",")[0].trim();
+        const { since, until } = janelaVarredura();
+        const [gastos, conta] = await Promise.all([
+          fetchDailySpend(token, contaPrincipal, since, until).catch(() => [] as import("../metaApi").GastoDiario[]),
+          fetchAdAccountBudget(token, contaPrincipal).catch(() => null),
+        ]);
+        const st = conta ? descreverStatus(conta.accountStatus, conta.disableReason) : null;
+        return {
+          ...base, ...resumirGasto(gastos),
+          saldo: conta && c.isPrePaid ? conta.balance : null,
+          conta: st ? { gravidade: st.gravidade, rotulo: st.rotulo } : null,
+        };
+      };
 
       const resultados: import("@shared/carteira").ClienteCarteira[] = [];
       const fila = [...lista];
@@ -846,13 +958,17 @@ export const managersRouter = router({
         for (let c = fila.shift(); c; c = fila.shift()) {
           try {
             const dados = await getClientById(c.id);
-            const k = await fetchClientKpis(c.id, input.from, input.to, dados?.salesChannelFilter ?? null);
+            const [k, varredura] = await Promise.all([
+              fetchClientKpis(c.id, input.from, input.to, dados?.salesChannelFilter ?? null),
+              input.varredura ? varrer(c) : Promise.resolve(undefined),
+            ]);
             resultados.push({
               id: c.id, nome: c.name, temMeta: Boolean(k.mediaDataAvailable),
               investimento: k.investimento ?? 0, leads: k.leads ?? 0,
               campanhas: (k.campanhasDetalhe ?? []).map((d) => ({
                 nome: d.nome, tipo: d.tipo, investimento: d.investimento, leads: d.conversas + d.leadsFormulario,
               })),
+              ...(varredura ? { varredura } : {}),
             });
           } catch (e) {
             resultados.push({ id: c.id, nome: c.name, erro: e instanceof Error ? e.message : String(e), temMeta: false, investimento: 0, leads: 0, campanhas: [] });

@@ -232,6 +232,14 @@ R$ 200 (crítico abaixo de R$ 50). Precisa de um bot seu e do id da conversa.
 Os tokens de relatório vieram no backup, na coluna `publicToken` da tabela
 `clients`.
 
+## 6e. Varredura matinal e diário de decisões
+
+Rotina do playbook dentro do painel:
+
+- **Carteira · Varredura** (botão na lateral): com "Varredura matinal" ligada, além do CPL do período cada cliente mostra gasto de ontem, gasto da semana com variação, campanhas ativas, saldo (só pré-pago), status da conta e decisões abertas. A cor diz o que fazer: vermelho = agir hoje, amarelo = investigar, verde = manter. Clique na linha para ver os motivos.
+- **Diário de decisões** (na página do cliente, abaixo dos registros comerciais): sinal → hipótese → ação → prazo → resultado. Decisão com prazo vencido deixa o cliente vermelho na Carteira. As marcadas com o olho aparecem no relatório do cliente como "O que ajustamos" (concluídas nos últimos 45 dias) e "Próximos passos" (abertas); sinal e hipótese nunca saem do painel.
+- A tabela `decisoes` é criada sozinha na subida do servidor, como as outras que faltavam no backup.
+
 ## Se algo falhar
 
 A aba **Deployments** → **View Logs** mostra o motivo. Os mais comuns:

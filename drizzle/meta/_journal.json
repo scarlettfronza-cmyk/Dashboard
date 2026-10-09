@@ -211,6 +211,13 @@
       "when": 1787688919301,
       "tag": "0029_clumsy_zarda",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1791000000000,
+      "tag": "0030_diario_decisoes",
+      "breakpoints": true
     }
   ]
 }

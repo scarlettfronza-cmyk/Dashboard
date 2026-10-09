@@ -1095,3 +1095,31 @@ export async function sendCAPIConversionEvent(params: {
     return false;
   }
 }
+
+// ── Gasto diário por campanha (varredura matinal) ───────────────────────────
+export type GastoDiario = { data: string; campanha: string; gasto: number };
+
+/**
+ * Gasto por campanha e por dia no intervalo. Uma chamada por conta; serve
+ * para "gastou ontem?", "quantas campanhas rodam?" e a tendência da semana.
+ */
+export async function fetchDailySpend(
+  accessToken: string,
+  adAccountId: string,
+  since: string,
+  until: string,
+): Promise<GastoDiario[]> {
+  const conta = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const linhas = await paginarGraph<{ date_start: string; campaign_id: string; spend?: string }>(
+    `${GRAPH_API_BASE}/${conta}/insights`,
+    {
+      access_token: accessToken,
+      level: "campaign",
+      time_increment: 1,
+      time_range: JSON.stringify({ since, until }),
+      fields: "campaign_id,spend",
+      limit: 500,
+    },
+  );
+  return linhas.map((l) => ({ data: l.date_start, campanha: l.campaign_id, gasto: parseFloat(l.spend ?? "0") || 0 }));
+}

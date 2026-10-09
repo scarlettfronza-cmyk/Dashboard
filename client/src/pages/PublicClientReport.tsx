@@ -25,6 +25,7 @@ function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+const formatarDataCurta = (iso: string) => { const [, m, d] = iso.split("-"); return `${d}/${m}`; };
 const MONTHS_FULL = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const MONTHS_CAL = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
@@ -99,7 +100,7 @@ export default function PublicClientReport() {
 
   const { data: _clientInfoRaw, isLoading: loadingClient, error: clientError } =
     trpc.public.getClientByToken.useQuery({ token, managerToken }, { enabled: !!token });
-  const clientInfo = _clientInfoRaw as (typeof _clientInfoRaw & { logoUrl?: string | null; brandColor?: string | null; proximosPassos?: string | null }) | undefined;
+  const clientInfo = _clientInfoRaw as (typeof _clientInfoRaw & { logoUrl?: string | null; brandColor?: string | null }) | undefined;
 
   useEffect(() => {
     if (!clientInfo?.id) return;
@@ -327,10 +328,19 @@ export default function PublicClientReport() {
               <Destaque paragrafos={leitura.recomendacao} accentColor={accentColor} t={theme} />
             </section>
 
-            {clientInfo.proximosPassos && (
+            {/* Do diário de decisões: o que já foi ajustado e o que vem a seguir */}
+            {(clientInfo.ajustes?.length ?? 0) > 0 && (
+              <section>
+                <Eyebrow accentColor={accentColor}>O que ajustamos</Eyebrow>
+                <Statement t={theme}>Gestão ativa, não só relatório.</Statement>
+                <Texto paragrafos={clientInfo.ajustes.map((a) => a.resultado ? `${a.acao} Resultado: ${a.resultado}` : a.acao)} t={theme} />
+              </section>
+            )}
+            {(clientInfo.proximosPassos?.length ?? 0) > 0 && (
               <section>
                 <Eyebrow accentColor={accentColor}>Próximos passos</Eyebrow>
-                <Texto paragrafos={[clientInfo.proximosPassos]} t={theme} />
+                <Statement t={theme}>O que vem a seguir.</Statement>
+                <Texto paragrafos={clientInfo.proximosPassos.map((p) => p.prazo ? `${p.acao} (até ${formatarDataCurta(p.prazo)})` : p.acao)} t={theme} />
               </section>
             )}
 

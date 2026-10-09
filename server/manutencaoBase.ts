@@ -15,7 +15,7 @@ export const TABELAS_COM_CLIENTE = [
   "sales_records", "integrations", "manager_clients", "snapshots", "report_config",
   "report_chat_history", "lead_ad_matches", "capi_events", "creative_analyses",
   "creative_briefs", "creative_assets", "before_after_pairs", "before_after_creatives",
-  "public_report_access_logs", "oauth_states",
+  "public_report_access_logs", "oauth_states", "decisoes",
 ] as const;
 
 export function sqlApagarOrfaos(tabela: string): string {

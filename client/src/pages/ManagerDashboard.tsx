@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { RECURSOS_IA_ATIVOS } from "@/lib/recursosOcultos";
 import { EnviarWhatsApp } from "@/components/report/EnviarWhatsApp";
+import { DiarioDecisoes } from "@/components/report/DiarioDecisoes";
 import { shouldAutoSyncMonday } from "@/lib/mondaySync";
 import { calculateRate, calculateRevenueConcentration } from "@/lib/executiveMetrics";
 import { useLocation } from "wouter";
@@ -622,7 +623,7 @@ export default function ManagerDashboard() {
             <button onClick={() => navigate("/manager/carteira")}
               className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-foreground hover:border-primary/30 hover:bg-muted/50">
               <TrendingUp className="w-3.5 h-3.5" />
-              Carteira · CPL
+              Carteira · Varredura
             </button>
             <button onClick={() => navigate("/manager/settings")}
               className="w-full flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg transition-all text-muted-foreground border border-border hover:text-foreground hover:border-primary/30 hover:bg-muted/50">
@@ -934,6 +935,9 @@ export default function ManagerDashboard() {
                           </div>
                         )}
                       </div>
+
+                      {/* Diário de decisões: o registro que cada análise deve deixar */}
+                      {activeClient && token && <DiarioDecisoes token={token} clientId={activeClient} />}
 
                       {/* Charts */}
                       {trendData && trendData.length > 0 && (

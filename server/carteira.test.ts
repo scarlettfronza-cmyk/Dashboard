@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { avaliarCliente, avaliarCarteira, acoesPorCampanha, resumoCarteira, type ClienteCarteira } from "@shared/carteira";
+import { avaliarCliente, avaliarCarteira, acoesPorCampanha, resumoCarteira, semaforo, type ClienteCarteira, type Varredura } from "@shared/carteira";
 
 const base = (over: Partial<ClienteCarteira> = {}): ClienteCarteira => ({
   id: 1, nome: "Cliente", temMeta: true, investimento: 1000, leads: 50, campanhas: [], ...over,
@@ -60,5 +60,43 @@ describe("avaliarCarteira / resumoCarteira", () => {
     ], 20);
     expect(linhas.map((l) => l.nome)).toEqual(["Pior", "Ruim", "Zerado", "Ok", "Parado"]);
     expect(resumoCarteira(linhas)).toMatchObject({ acima: 2, sem_leads: 1, dentro: 1, sem_investimento: 1 });
+  });
+});
+
+describe("semaforo (varredura matinal)", () => {
+  const varredura = (over: Partial<Varredura> = {}): Varredura => ({
+    gastoOntem: 50, gasto7: 350, gasto7Anteriores: 340, campanhasAtivas: 2, saldo: null, conta: { gravidade: "ok", rotulo: "Ativa" },
+    decisoes: { pendente: 0, vencida: 0 }, ...over,
+  });
+  const linha = (c: Partial<ClienteCarteira> = {}, v?: Partial<Varredura>) =>
+    avaliarCarteira([base({ ...c, varredura: varredura(v) })], 20)[0];
+
+  it("tudo em ordem é verde, sem motivos", () => {
+    expect(semaforo(linha())).toEqual({ cor: "verde", motivos: [] });
+  });
+  it("CPL estourado, conta crítica, saldo crítico, decisão vencida e gasto zerado são vermelhos", () => {
+    expect(semaforo(linha({ leads: 30 })).cor).toBe("vermelho");
+    expect(semaforo(linha({}, { conta: { gravidade: "critico", rotulo: "Pagamento pendente" } })).motivos).toContain("conta: pagamento pendente");
+    expect(semaforo(linha({}, { saldo: 40 })).cor).toBe("vermelho");
+    expect(semaforo(linha({}, { decisoes: { pendente: 1, vencida: 2 } })).motivos).toContain("2 decisões vencidas");
+    expect(semaforo(linha({}, { gastoOntem: 0 })).motivos).toContain("não gastou ontem");
+  });
+  it("saldo baixo, queda de gasto e CPL perto do limite são amarelos", () => {
+    expect(semaforo(linha({}, { saldo: 150 })).cor).toBe("amarelo");
+    expect(semaforo(linha({}, { gasto7: 100, gasto7Anteriores: 300 })).motivos[0]).toContain("gasto caiu 67%");
+    expect(semaforo(linha({ leads: 42 })).cor).toBe("amarelo");
+  });
+  it("vermelho acumula os motivos amarelos; sem investimento é cinza", () => {
+    const s = semaforo(linha({}, { saldo: 40, gasto7: 100, gasto7Anteriores: 300 }));
+    expect(s.cor).toBe("vermelho"); expect(s.motivos).toHaveLength(2);
+    expect(semaforo(linha({ investimento: 0, leads: 0 }, { gastoOntem: 0, gasto7: 0, gasto7Anteriores: 0 })).cor).toBe("cinza");
+  });
+  it("sem varredura, só o CPL decide", () => {
+    expect(semaforo(avaliarCarteira([base()], 20)[0]).cor).toBe("verde");
+    expect(semaforo(avaliarCarteira([base({ leads: 30 })], 20)[0]).cor).toBe("vermelho");
+  });
+  it("ordena vermelhos antes dos verdes mesmo com CPL igual", () => {
+    const ordem = avaliarCarteira([base({ id: 1 }), base({ id: 2, varredura: varredura({ saldo: 10 }) })], 20).map((l) => l.id);
+    expect(ordem).toEqual([2, 1]);
   });
 });

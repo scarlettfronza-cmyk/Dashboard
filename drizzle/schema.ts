@@ -336,3 +336,22 @@ export const oauthStates = mysqlTable("oauth_states", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [index("oauth_states_expiresAt_idx").on(table.expiresAt)]);
 export type OAuthState = typeof oauthStates.$inferSelect;
+
+// Diário de decisões: sinal encontrado → hipótese → ação → prazo → resultado.
+// Um registro por decisão, por cliente. O relatório do cliente só mostra a
+// ação e o resultado das marcadas como visíveis; sinal e hipótese são internos.
+export const decisoes = mysqlTable("decisoes", {
+  id: int("id").autoincrement().primaryKey(),
+  clientId: int("clientId").notNull(),
+  managerId: int("managerId"),
+  sinal: text("sinal").notNull(),
+  hipotese: text("hipotese"),
+  acao: text("acao").notNull(),
+  prazo: varchar("prazo", { length: 10 }),
+  resultado: text("resultado"),
+  concluidaEm: timestamp("concluidaEm"),
+  noRelatorio: boolean("noRelatorio").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [index("decisoes_clientId_idx").on(table.clientId)]);
+export type Decisao = typeof decisoes.$inferSelect;
+export type InsertDecisao = typeof decisoes.$inferInsert;
