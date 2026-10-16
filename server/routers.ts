@@ -1562,8 +1562,22 @@ const whatsappRouter = router({
         .from(clientsTable).where(drizzleEq(clientsTable.id, input.clientId)).limit(1);
       const client = rows[0];
       if (!client) throw new Error("Cliente não encontrado");
+      // Os números da mensagem são os mesmos do painel e do relatório.
+      let metricas: import("@shared/whatsappRelatorio").MetricasMensagem | null = null;
+      try {
+        const dados = await getClientById(input.clientId);
+        const k = await fetchClientKpis(input.clientId, input.from, input.to, dados?.salesChannelFilter ?? null);
+        metricas = {
+          investimento: k.investimento, leads: k.leads, custoPorLead: k.custoPorLead,
+          vendas: k.vendas, custoPorVenda: k.custoPorVenda, faturamento: k.receitaTotal,
+          roas: k.roas, ticketMedio: k.ticketMedio, taxaConversao: k.taxaConversao,
+          novosContatos: k.novosContatos, novosSeguidores: k.novosSeguidores,
+        };
+      } catch (e) {
+        console.warn("[WhatsApp] prévia sem métricas:", e instanceof Error ? e.message : e);
+      }
       return {
-        corpo: corpoPadrao({ from: input.from, to: input.to }),
+        corpo: corpoPadrao({ from: input.from, to: input.to, metricas }),
         link: client.publicToken ? linkRelatorio(input.origin, client.publicToken, input.from, input.to) : null,
         grupoConfigurado: !!client.whatsappGroupId,
       };

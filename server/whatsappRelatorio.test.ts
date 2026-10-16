@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   zapVarsFaltando, formatarPeriodo, linkRelatorio, corpoPadrao,
-  montarMensagemRelatorio, lerPeriodoDaUrl, ASSINATURA, PERGUNTAS,
+  montarMensagemRelatorio, lerPeriodoDaUrl, ASSINATURA, PERGUNTAS, linhasMetricas,
 } from "@shared/whatsappRelatorio";
 
 describe("zapVarsFaltando", () => {
@@ -78,5 +78,31 @@ describe("lerPeriodoDaUrl", () => {
   });
   it("hoje é permitido como fim", () => {
     expect(lerPeriodoDaUrl("?de=2026-09-01&ate=2026-09-22", hoje)).not.toBeNull();
+  });
+});
+
+describe("linhasMetricas e corpo com números", () => {
+  const m = {
+    investimento: 2919.01, leads: 246, custoPorLead: 11.87, vendas: 5, custoPorVenda: 583.8,
+    faturamento: 4140, roas: 1.42, ticketMedio: 828, taxaConversao: 2.03, novosContatos: 205, novosSeguidores: 184,
+  };
+  it("uma linha por número, em português e na ordem do funil", () => {
+    const l = linhasMetricas(m).map((x) => x.replace(/ /g, " "));
+    expect(l).toEqual([
+      "Investimento: R$ 2.919,01", "Leads: 246", "CPL: R$ 11,87", "Vendas: 5", "Custo por venda: R$ 583,80",
+      "Faturamento: R$ 4.140,00", "ROAS: 1,42", "Ticket médio: R$ 828,00", "Taxa de conversão: 2,03%",
+      "Novos contatos: 205", "Novos seguidores: 184",
+    ]);
+  });
+  it("zero, ausente ou inválido fica de fora", () => {
+    expect(linhasMetricas({ investimento: 0, leads: undefined, roas: NaN, novosSeguidores: 3 })).toEqual(["Novos seguidores: 3"]);
+  });
+  it("o corpo traz o resumo entre a saudação e as perguntas; sem métricas, nada muda", () => {
+    const base = { from: "2026-10-01", to: "2026-10-16" };
+    const c = corpoPadrao({ ...base, metricas: m });
+    expect(c.indexOf("📊 *Resumo do período*")).toBeGreaterThan(c.indexOf("Olá!"));
+    expect(c.indexOf("Leads: 246")).toBeLessThan(c.indexOf("Perguntinhas"));
+    expect(corpoPadrao({ ...base, metricas: {} })).toBe(corpoPadrao(base));
+    expect(corpoPadrao(base)).not.toContain("Resumo do período");
   });
 });

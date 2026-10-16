@@ -43,6 +43,46 @@ export type DadosMensagem = {
   texto?: string | null;
 };
 
+/** Números do período que entram na mensagem. Zero ou ausente fica de fora. */
+export type MetricasMensagem = {
+  investimento?: number;
+  leads?: number;
+  custoPorLead?: number;
+  vendas?: number;
+  custoPorVenda?: number;
+  faturamento?: number;
+  roas?: number;
+  ticketMedio?: number;
+  taxaConversao?: number;
+  novosContatos?: number;
+  novosSeguidores?: number;
+};
+
+const brl = (v: number) => "R$ " + v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const inteiro = (v: number) => Math.round(v).toLocaleString("pt-BR");
+const pos = (v: number | undefined): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+
+/**
+ * Bloco de métricas, uma por linha, só com o que tem valor. A ordem segue
+ * o funil: quanto investiu, quantos leads, o que virou venda, o que isso
+ * rendeu, e por fim o crescimento do perfil.
+ */
+export function linhasMetricas(m: MetricasMensagem): string[] {
+  const linhas: string[] = [];
+  if (pos(m.investimento)) linhas.push(`Investimento: ${brl(m.investimento)}`);
+  if (pos(m.leads)) linhas.push(`Leads: ${inteiro(m.leads)}`);
+  if (pos(m.custoPorLead)) linhas.push(`CPL: ${brl(m.custoPorLead)}`);
+  if (pos(m.vendas)) linhas.push(`Vendas: ${inteiro(m.vendas)}`);
+  if (pos(m.custoPorVenda)) linhas.push(`Custo por venda: ${brl(m.custoPorVenda)}`);
+  if (pos(m.faturamento)) linhas.push(`Faturamento: ${brl(m.faturamento)}`);
+  if (pos(m.roas)) linhas.push(`ROAS: ${m.roas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  if (pos(m.ticketMedio)) linhas.push(`Ticket médio: ${brl(m.ticketMedio)}`);
+  if (pos(m.taxaConversao)) linhas.push(`Taxa de conversão: ${m.taxaConversao.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`);
+  if (pos(m.novosContatos)) linhas.push(`Novos contatos: ${inteiro(m.novosContatos)}`);
+  if (pos(m.novosSeguidores)) linhas.push(`Novos seguidores: ${inteiro(m.novosSeguidores)}`);
+  return linhas;
+}
+
 /**
  * Perguntas que vão junto com o relatório: a resposta da clínica sobre a
  * qualidade dos leads é o que a gestora não enxerga pelos números.
@@ -58,10 +98,12 @@ export const PERGUNTAS = [
  * Corpo da mensagem sem o link — é o que a gestora edita na prévia.
  * Sem o nome do cliente: a mensagem vai no grupo da própria clínica.
  */
-export function corpoPadrao(d: Pick<DadosMensagem, "from" | "to">): string {
+export function corpoPadrao(d: Pick<DadosMensagem, "from" | "to"> & { metricas?: MetricasMensagem | null }): string {
+  const numeros = d.metricas ? linhasMetricas(d.metricas) : [];
   return [
     `Olá! 👋 Segue o relatório referente ao período de ${formatarPeriodo(d.from, d.to)}.`,
     "",
+    ...(numeros.length ? ["📊 *Resumo do período*", ...numeros, ""] : []),
     "Nele estão os dados de tráfego, o perfil do Instagram e os resultados comerciais do período.",
     "",
     ...PERGUNTAS,
