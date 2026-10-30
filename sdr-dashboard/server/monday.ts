@@ -222,6 +222,10 @@ export const BOARD_COLUMN_OVERRIDES: Record<string, Partial<Record<CampoMapeavel
   "18406692406": { dataFechamento: ["Data da consulta"], valor: ["Valor da cirurgia"] },
   // Dr. Lucas Moura: 2 fechamentos e R$ 33.000 em agosto.
   "18418032339": { dataFechamento: ["Data da consulta"], valor: ["Valor do procedimento"] },
+  // Dra. Estéfani Molinar: a venda conta no mês da cirurgia. Em outubro de
+  // 2026 o Monday tem 2 cirurgias (R$ 14.800 em 21/10 e R$ 15.000 em 15/10);
+  // com a data de fechamento detectada pelo título o painel via só uma.
+  "18406699335": { dataFechamento: ["Data da cirurgia"], valor: ["Valor da cirurgia"] },
 };
 
 /**

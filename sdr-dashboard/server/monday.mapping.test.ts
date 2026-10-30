@@ -82,6 +82,13 @@ describe("mappingForBoard", () => {
     }
   });
 
+  it("Dra. Estéfani: fechamento pela data da cirurgia e receita pelo valor da cirurgia", () => {
+    const comCirurgia: ColumnMeta[] = [...columns, { id: "cirurgia-data", title: "Data da cirurgia", type: "date" }];
+    const mapping = mappingForBoard("18406699335", COLUMN_PROFILES.ellora, comCirurgia);
+    expect(mapping.dataFechamento).toEqual(["cirurgia-data"]);
+    expect(mapping.valor).toEqual(["cirurgia-valor"]);
+  });
+
   it("Dr. Mansur: valor da cirurgia, nunca o valor da consulta", () => {
     const mapping = mappingForBoard("18406692406", COLUMN_PROFILES.ellora, columns);
     expect(mapping.valor).toEqual(["cirurgia-valor"]);
