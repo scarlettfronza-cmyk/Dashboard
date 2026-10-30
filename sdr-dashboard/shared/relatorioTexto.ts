@@ -90,7 +90,7 @@ export function montarTextoRelatorio(d: DadosTextoRelatorio): string {
     if (m.negociosFechados > 1) resultado.push(`🎯 Ticket médio: ${formatBRL(m.ticketMedio)}`);
   }
   if (m.receitaConsultas > 0) {
-    resultado.push(`🩺 Consultas pagas: ${m.consultasPagas} (${formatBRL(m.receitaConsultas)})`);
+    resultado.push(`🩺 Valor das consultas: ${formatBRL(m.receitaConsultas)} (${plural(m.consultasPagas, "consulta", "consultas")})`);
   }
   blocos.push(resultado.join("\n"));
 

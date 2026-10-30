@@ -69,7 +69,7 @@ export interface Metrics {
    * do relatório de agosto. Sem período, é zero.
    */
   agendadasParaDepois: number;
-  /** Consultas do período com presença e valor de consulta preenchido. */
+  /** Consultas do período com valor de consulta preenchido. */
   consultasPagas: number;
   /** Soma do "Valor da Consulta" dessas consultas. */
   receitaConsultas: number;
@@ -362,9 +362,11 @@ export function computeMetrics(
   const agendamentos = agendamentosNoPeriodo.length;
   // Base da taxa de comparecimento: as consultas que acontecem no período.
   const baseComparecimento = agendadosPorLead.length;
-  // Consulta paga: aconteceu no período (data da consulta + presença) e tem
-  // valor.
-  const pagas = agendadosPorLead.filter(l => compareceuIsPresente(l.compareceu) && (l.valorConsulta ?? 0) > 0);
+  // Valor das consultas: soma do "Valor da Consulta" de todas as consultas com
+  // data no período, como o total da coluna no Monday. Não depende de
+  // "Compareceu": no Dr. Jonas em outubro o Monday dava R$ 6.850 e, só com
+  // presença marcada, o painel mostrava R$ 6.000.
+  const pagas = agendadosPorLead.filter(l => (l.valorConsulta ?? 0) > 0);
   // Todo comparecimento conta, inclusive de Indicação. A exclusão de
   // Indicação (regra antiga do handoff) foi derrubada pela gestora: em
   // outubro a Dra. Tatiana teve 21 presenças no Monday e o painel mostrava 20.

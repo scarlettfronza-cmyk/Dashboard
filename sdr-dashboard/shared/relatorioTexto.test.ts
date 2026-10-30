@@ -62,9 +62,9 @@ describe("montarTextoRelatorio", () => {
 
   it("mostra as consultas pagas com quantidade e valor", () => {
     const texto = montarTextoRelatorio({ clienteNome: "Clínica", range, metrics: base });
-    expect(texto).toMatch(/Consultas pagas: 25 \(R\$\s17\.500\)/);
+    expect(texto).toMatch(/Valor das consultas: R\$\s17\.500 \(25 consultas\)/);
     const semConsulta = montarTextoRelatorio({ clienteNome: "Clínica", range, metrics: { ...base, consultasPagas: 0, receitaConsultas: 0 } });
-    expect(semConsulta).not.toContain("Consultas pagas");
+    expect(semConsulta).not.toContain("Valor das consultas");
   });
 
   it("inclui conversas realizadas e social selling do diário", () => {

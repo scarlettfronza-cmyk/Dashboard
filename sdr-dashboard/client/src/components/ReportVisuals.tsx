@@ -58,7 +58,7 @@ export function ReportVisuals({ snapshot, compact = false }: { snapshot: ReportS
           detalhe={k.negociosFechados > 0 ? `ticket médio ${formatBRL(k.ticketMedio)}` : undefined}
         />
         <Destaque
-          rotulo="Consultas pagas"
+          rotulo="Valor das consultas"
           valor={formatBRL(k.receitaConsultas ?? 0)}
           cor="#0ea5e9"
           detalhe={

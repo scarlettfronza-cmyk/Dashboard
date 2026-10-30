@@ -280,7 +280,7 @@ describe("computeMetrics", () => {
     expect(m.socialSelling).toBe(14);
   });
 
-  it("soma as consultas pagas do período: presença e valor de consulta", () => {
+  it("soma o valor de todas as consultas do período, como o total do Monday", () => {
     const leads = [
       lead({ id: "pagou", dataConsulta: "05/08/2026", compareceu: "Sim", valorConsulta: 750 }),
       lead({ id: "indicacao-pagou", canal: "Indicação", dataConsulta: "06/08/2026", compareceu: "Sim", valorConsulta: 750 }),
@@ -289,8 +289,9 @@ describe("computeMetrics", () => {
       lead({ id: "setembro", dataConsulta: "02/09/2026", compareceu: "Sim", valorConsulta: 750 }),
     ];
     const m = computeMetrics(leads, agosto);
-    expect(m.consultasPagas).toBe(2);
-    expect(m.receitaConsultas).toBe(1500);
+    // todas as consultas de agosto com valor, compareceram ou não
+    expect(m.consultasPagas).toBe(3);
+    expect(m.receitaConsultas).toBe(2250);
   });
 
   it("reconhece mês fechado do calendário", async () => {
