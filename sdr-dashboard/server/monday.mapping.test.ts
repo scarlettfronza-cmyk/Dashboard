@@ -85,7 +85,8 @@ describe("mappingForBoard", () => {
   it("Dra. Estéfani: fechamento pela data da cirurgia e receita pelo valor da cirurgia", () => {
     const comCirurgia: ColumnMeta[] = [...columns, { id: "cirurgia-data", title: "Data da cirurgia", type: "date" }];
     const mapping = mappingForBoard("18406699335", COLUMN_PROFILES.ellora, comCirurgia);
-    expect(mapping.dataFechamento).toEqual(["cirurgia-data"]);
+    // sem data da cirurgia, vale a data de fechamento
+    expect(mapping.dataFechamento).toEqual(["cirurgia-data", "fechamento"]);
     expect(mapping.valor).toEqual(["cirurgia-valor"]);
   });
 

@@ -180,14 +180,15 @@ export async function sincronizar(
 
 /** Atualiza manualmente a cópia local de um único cliente. */
 export async function sincronizarCliente(client: { name: string; boardId: string }) {
-  // A tela precisa devolver o controle rapidamente quando o Monday está sob
-  // limite. A rotina automática continua percorrendo a carteira aos poucos;
-  // já este clique tenta a clínica selecionada uma vez e para na primeira
-  // falha, em vez de deixar a SDR presa em "Atualizando...".
+  // No Manus o callback tinha orçamento curto (8s por chamada, 12s por board)
+  // e um board grande, como o de agendamentos da Dra. Estéfani, não terminava:
+  // a cópia antiga ficava e o clique parecia não fazer nada. Fora dele o
+  // servidor espera o Monday responder, com uma nova tentativa, e ainda para
+  // no primeiro board que falhar para não deixar a SDR esperando os demais.
   return sincronizar(idsDoCliente(client), {
-    maxAttempts: 1,
-    requestTimeoutMs: 8_000,
-    boardTimeoutMs: 12_000,
+    maxAttempts: 2,
+    requestTimeoutMs: 25_000,
+    boardTimeoutMs: 60_000,
     stopOnFailure: true,
   });
 }

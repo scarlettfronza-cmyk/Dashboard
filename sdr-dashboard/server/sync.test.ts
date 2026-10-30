@@ -54,9 +54,9 @@ describe("sincronizarCliente", () => {
       [expect.objectContaining({ id: "101" })],
       expect.objectContaining({
         force: true,
-        maxAttempts: 1,
-        requestTimeoutMs: 8_000,
-        boardTimeoutMs: 12_000,
+        maxAttempts: 2,
+        requestTimeoutMs: 25_000,
+        boardTimeoutMs: 60_000,
       }),
     );
   });

@@ -62,11 +62,13 @@ export default function Home() {
     onSuccess: (result) => {
       void utils.sdr.clientData.invalidate();
       void utils.sdr.allClientsData.invalidate();
-      toast.success(
-        result.falhas > 0
-          ? "Atualização concluída, mas alguns boards ainda aguardam o Monday."
-          : "Dados atualizados com sucesso.",
-      );
+      if (result.falhas > 0) {
+        toast.warning(
+          `${result.falhas} board(s) não responderam a tempo e continuam com a cópia anterior. Tente de novo em alguns minutos.`,
+        );
+      } else {
+        toast.success("Dados atualizados com sucesso.");
+      }
     },
     onError: () => toast.error("Não foi possível atualizar agora. Tente novamente em alguns instantes."),
   });
