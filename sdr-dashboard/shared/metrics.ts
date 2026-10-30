@@ -124,7 +124,7 @@ export const METRIC_DEFINITIONS: Record<string, { label: string; dateField: keyo
   comparecimentos: {
     label: "Comparecimentos",
     dateField: "dataConsulta",
-    rule: "Lead não vindo de Indicação, com consulta no período e coluna de comparecimento indicando presença.",
+    rule: "Lead com consulta no período e coluna de comparecimento indicando presença, de qualquer canal (inclusive Indicação).",
   },
   negociosFechados: {
     label: "Negócios fechados",
@@ -371,11 +371,12 @@ export function computeMetrics(
   // Base da taxa de comparecimento: só o que podia ter acontecido no período.
   const baseComparecimento = agendamentosDiarios + agendamentosPorLeadSemDiario;
   // Consulta paga: aconteceu no período (data da consulta + presença) e tem
-  // valor. Indicação entra: a exclusão dela vale só para a taxa comercial.
+  // valor.
   const pagas = agendadosPorLead.filter(l => compareceuIsPresente(l.compareceu) && (l.valorConsulta ?? 0) > 0);
-  const compareceram = agendadosPorLead.filter(
-    lead => !isCanalIndicacao(lead.canal) && compareceuIsPresente(lead.compareceu),
-  );
+  // Todo comparecimento conta, inclusive de Indicação. A exclusão de
+  // Indicação (regra antiga do handoff) foi derrubada pela gestora: em
+  // outubro a Dra. Tatiana teve 21 presenças no Monday e o painel mostrava 20.
+  const compareceram = agendadosPorLead.filter(lead => compareceuIsPresente(lead.compareceu));
 
   const fechados = leads.filter(
     l => l.statusLead === "Negócio fechado" && leadInRange(l, "dataFechamento", range, "dataConversao"),

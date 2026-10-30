@@ -7,7 +7,7 @@ import { Lead } from "@/hooks/useMondayData";
 import { KpiCard } from "@/components/KpiCard";
 import { LeadsTable } from "@/components/LeadsTable";
 import { Calendar, CheckCircle, XCircle, Clock } from "lucide-react";
-import { filterLeadsByDate, isCanalIndicacao, type DateRange, type Metrics } from "@shared/metrics";
+import { filterLeadsByDate, type DateRange, type Metrics } from "@shared/metrics";
 
 interface AgendamentosProps {
   leads: Lead[];
@@ -17,9 +17,7 @@ interface AgendamentosProps {
 
 export default function Agendamentos({ leads, metrics, range }: AgendamentosProps) {
   const filtered = useMemo(() => {
-    return filterLeadsByDate(leads, "dataConsulta", range).filter(
-      lead => lead.dataConsulta && !isCanalIndicacao(lead.canal),
-    );
+    return filterLeadsByDate(leads, "dataConsulta", range).filter(lead => lead.dataConsulta);
   }, [leads, range]);
 
   const compareceu = filtered.filter((l) => l.compareceu === "Sim").length;

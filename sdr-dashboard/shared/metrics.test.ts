@@ -145,7 +145,7 @@ describe("computeMetrics", () => {
     expect(m.taxaComparecimento).toBe(0);
   });
 
-  it("usa o relatório diário para agendamentos e exclui Indicação dos comparecimentos", () => {
+  it("usa o relatório diário para agendamentos e conta comparecimentos de Indicação", () => {
     const presentesDiretos = Array.from({ length: 30 }, (_, index) => lead({
       id: `direto-${index}`,
       canal: "Whats/META",
@@ -173,8 +173,8 @@ describe("computeMetrics", () => {
 
     const m = computeMetrics([...presentesDiretos, ...presentesIndicacao], agosto, diarios);
     expect(m.agendamentos).toBe(40);
-    expect(m.comparecimentos).toBe(30);
-    expect(m.taxaComparecimento).toBe(75);
+    expect(m.comparecimentos).toBe(33);
+    expect(m.taxaComparecimento).toBe(82.5);
   });
 
   it("mantém os agendamentos por lead dos clientes sem relatório diário na visão consolidada", () => {
