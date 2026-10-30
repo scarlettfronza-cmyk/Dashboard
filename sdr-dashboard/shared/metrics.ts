@@ -119,7 +119,7 @@ export const METRIC_DEFINITIONS: Record<string, { label: string; dateField: keyo
   agendamentos: {
     label: "Agendamentos",
     dateField: "dataConsulta",
-    rule: "Soma de Consulta Agendada no relatório diário quando ele existe no período; sem esse relatório, conta leads com data de consulta marcada.",
+    rule: "Leads do board de agendamentos com Data de conversão ou Data da consulta no período, contados uma vez. Os convertidos no período com consulta depois dele aparecem à parte.",
   },
   comparecimentos: {
     label: "Comparecimentos",
@@ -337,39 +337,31 @@ export function computeMetrics(
   const recebidos = leads.filter(l => leadInRange(l, "dataConversao", range, "dataConsulta"));
   const agendadosPorLead = leads.filter(l => parseDate(l.dataConsulta) && leadInRange(l, "dataConsulta", range));
   const registrosDiariosNoPeriodo = atendimentos.filter(record => inRange(parseDate(record.date), range));
-  // O relatório diário consolida as consultas agendadas, inclusive registros
-  // que ainda não chegaram ao board individual de agendamentos. A preferência
-  // é feita por cliente, pois a visão consolidada pode misturar clientes que
-  // possuem e que não possuem o relatório diário.
+  // Agendamento do período = lead do board de agendamentos com Data de
+  // conversão OU Data da consulta no período, contado uma vez. É assim que a
+  // gestora conta: Dr. Jonas em setembro = 10 consultas de setembro + 2
+  // convertidos em setembro para outubro = 12; Dra. Tatiana em outubro = 21 +
+  // 7 para novembro = 28; Dra. Estéfani em outubro = 17 conversões + quem
+  // converteu antes e consultou em outubro.
   //
-  // Só vale o diário do cliente que tem consultas agendadas preenchidas no
-  // período. Há clínicas (ex.: Dr. Jonas) em que a equipe registra contatos no
-  // diário mas deixa "Consulta Agendada" em zero; ali as consultas estão só no
-  // board de agendamentos, e usar o diário zerava o card de agendamentos.
-  const chaveCliente = (value: { clientName: string; boardId: string }) => value.clientName || value.boardId;
-  const somaDiarioPorCliente = new Map<string, number>();
-  for (const record of registrosDiariosNoPeriodo) {
-    const chave = chaveCliente(record);
-    somaDiarioPorCliente.set(chave, (somaDiarioPorCliente.get(chave) ?? 0) + record.consultaAgendada);
-  }
-  const clientesComDiario = new Set(Array.from(somaDiarioPorCliente).filter(([, soma]) => soma > 0).map(([chave]) => chave));
-  const agendamentosDiarios = Array.from(somaDiarioPorCliente.values()).reduce((sum, soma) => sum + soma, 0);
-  const agendamentosPorLeadSemDiario = agendadosPorLead.filter(lead => !clientesComDiario.has(chaveCliente(lead))).length;
-  // Marcadas no período para depois dele ("2 para outubro"). Agendamento é o
-  // que a SDR FEZ no período: as consultas do período mais essas. No diário
-  // elas já estão somadas ("40, sendo 32 em agosto e 8 para setembro"), então
-  // só entram à parte para os clientes sem diário.
-  const marcadasParaDepois = range
-    ? leads.filter(l => {
+  // O relatório diário NÃO entra aqui: em várias clínicas a coluna "Consulta
+  // Agendada" fica zerada ou preenchida só em alguns dias (Estéfani: 7 contra
+  // 18 no board), e usá-lo derrubava o card.
+  const agendamentosNoPeriodo = leads.filter(
+    l =>
+      (parseDate(l.dataConsulta) && leadInRange(l, "dataConsulta", range)) ||
+      (parseDate(l.dataConversao) && leadInRange(l, "dataConversao", range)),
+  );
+  // Desses, os convertidos no período com consulta depois dele ("2 para outubro").
+  const agendadasParaDepois = range
+    ? agendamentosNoPeriodo.filter(l => {
         const consulta = parseDate(l.dataConsulta);
-        return Boolean(consulta && consulta > range.to && inRange(parseDate(l.dataConversao), range));
-      })
-    : [];
-  const agendadasParaDepois = marcadasParaDepois.length;
-  const paraDepoisSemDiario = marcadasParaDepois.filter(lead => !clientesComDiario.has(chaveCliente(lead))).length;
-  const agendamentos = agendamentosDiarios + agendamentosPorLeadSemDiario + paraDepoisSemDiario;
-  // Base da taxa de comparecimento: só o que podia ter acontecido no período.
-  const baseComparecimento = agendamentosDiarios + agendamentosPorLeadSemDiario;
+        return Boolean(consulta && consulta > range.to);
+      }).length
+    : 0;
+  const agendamentos = agendamentosNoPeriodo.length;
+  // Base da taxa de comparecimento: as consultas que acontecem no período.
+  const baseComparecimento = agendadosPorLead.length;
   // Consulta paga: aconteceu no período (data da consulta + presença) e tem
   // valor.
   const pagas = agendadosPorLead.filter(l => compareceuIsPresente(l.compareceu) && (l.valorConsulta ?? 0) > 0);

@@ -109,7 +109,8 @@ describe("computeMetrics", () => {
   it("conta cada métrica pela sua própria data de referência", () => {
     const m = computeMetrics(leads, agosto);
     expect(m.leadsRecebidos).toBe(3); // exclui o de julho e o sem data
-    expect(m.agendamentos).toBe(2);
+    // conversão OU consulta em agosto: os 4 com alguma dessas datas em agosto
+    expect(m.agendamentos).toBe(4);
     expect(m.comparecimentos).toBe(1);
     // o fechamento de agosto entra mesmo tendo sido convertido em julho
     expect(m.negociosFechados).toBe(2);
@@ -145,7 +146,7 @@ describe("computeMetrics", () => {
     expect(m.taxaComparecimento).toBe(0);
   });
 
-  it("usa o relatório diário para agendamentos e conta comparecimentos de Indicação", () => {
+  it("ignora o diário nos agendamentos e conta comparecimentos de Indicação", () => {
     const presentesDiretos = Array.from({ length: 30 }, (_, index) => lead({
       id: `direto-${index}`,
       canal: "Whats/META",
@@ -172,9 +173,9 @@ describe("computeMetrics", () => {
     }];
 
     const m = computeMetrics([...presentesDiretos, ...presentesIndicacao], agosto, diarios);
-    expect(m.agendamentos).toBe(40);
+    expect(m.agendamentos).toBe(33);
     expect(m.comparecimentos).toBe(33);
-    expect(m.taxaComparecimento).toBe(82.5);
+    expect(m.taxaComparecimento).toBe(100);
   });
 
   it("mantém os agendamentos por lead dos clientes sem relatório diário na visão consolidada", () => {
@@ -194,7 +195,7 @@ describe("computeMetrics", () => {
     }];
 
     const m = computeMetrics([tati, outraClinica], agosto, diarios);
-    expect(m.agendamentos).toBe(41);
+    expect(m.agendamentos).toBe(2);
     expect(m.comparecimentos).toBe(2);
   });
 
@@ -250,15 +251,23 @@ describe("computeMetrics", () => {
     expect(m.taxaComparecimento).toBe(80);
   });
 
-  it("no cliente com diário, as marcadas para depois já estão no total do diário", () => {
+  it("diário parcial não derruba os agendamentos do board (caso Dra. Estéfani)", () => {
     const diario = [{
       date: "2026-08-15", novosContatos: 0, novosAds: 0, conversasRealizadas: 0, consultaAgendada: 40,
       agendadoAds: 0, procedimentoVendido: 0, boardId: "diario", clientName: "Dra X", sdrName: "Luana",
     }];
-    const paraSetembro = lead({ id: "set", dataConversao: "20/08/2026", dataConsulta: "05/09/2026" });
-    const m = computeMetrics([paraSetembro], agosto, diario);
-    expect(m.agendamentos).toBe(40);
-    expect(m.agendadasParaDepois).toBe(1);
+    // Diário com "Consulta Agendada" = 7; board com 18 agendamentos em agosto.
+    diario[0].consultaAgendada = 7;
+    const board = Array.from({ length: 17 }, (_, i) =>
+      lead({ id: `conv-${i}`, dataConversao: `${String(i + 1).padStart(2, "0")}/08/2026`, dataConsulta: i < 3 ? "05/09/2026" : "25/08/2026", compareceu: "Sim" }),
+    );
+    const convertidoAntes = lead({ id: "julho", dataConversao: "28/07/2026", dataConsulta: "04/08/2026", compareceu: "Sim" });
+    const m = computeMetrics([...board, convertidoAntes], agosto, diario);
+    expect(m.agendamentos).toBe(18);
+    expect(m.agendadasParaDepois).toBe(3);
+    // 15 consultas em agosto, todas com presença: nunca passa de 100%
+    expect(m.comparecimentos).toBe(15);
+    expect(m.taxaComparecimento).toBe(100);
   });
 
   it("soma conversas realizadas e social selling do diário no período", () => {
