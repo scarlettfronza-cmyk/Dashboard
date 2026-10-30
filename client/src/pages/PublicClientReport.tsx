@@ -12,6 +12,7 @@ import { PrintStyles } from "@/components/report/PrintStyles";
 import { lerPeriodo } from "@/lib/analiseRelatorio";
 import { PeriodPicker } from "@/components/report/PeriodPicker";
 import { lerPeriodoDaUrl } from "@shared/whatsappRelatorio";
+import { ehDemo, DEMO_CLIENTE, DEMO_KPIS, DEMO_INSTAGRAM, DEMO_POSTS, DEMO_CRIATIVOS } from "@/lib/relatorioDemo";
 
 const AGENCIA = "Digital Escarlate";
 const GESTORA = "Scarlett Fronza";
@@ -84,6 +85,9 @@ function CustomTooltip({ active, payload, label, t }: any) {
 export default function PublicClientReport() {
   const params = useParams<{ token: string }>();
   const token = params.token;
+  // /r/demo: a mesma página com dados fictícios, para mostrar a quem ainda
+  // não é cliente como o relatório chega. Nenhuma consulta vai ao servidor.
+  const demo = ehDemo(token);
   const managerToken = typeof window !== "undefined" ? localStorage.getItem("manager_token") ?? undefined : undefined;
 
   const now = new Date();
@@ -98,9 +102,10 @@ export default function PublicClientReport() {
   const syncBoardMutation = trpc.monday.syncBoardAsManager.useMutation();
   const utils = trpc.useUtils();
 
-  const { data: _clientInfoRaw, isLoading: loadingClient, error: clientError } =
-    trpc.public.getClientByToken.useQuery({ token, managerToken }, { enabled: !!token });
-  const clientInfo = _clientInfoRaw as (typeof _clientInfoRaw & { logoUrl?: string | null; brandColor?: string | null }) | undefined;
+  const { data: _clientInfoRaw, isLoading: loadingClientReal, error: clientError } =
+    trpc.public.getClientByToken.useQuery({ token, managerToken }, { enabled: !!token && !demo });
+  const clientInfo = (demo ? DEMO_CLIENTE : _clientInfoRaw) as (typeof _clientInfoRaw & { logoUrl?: string | null; brandColor?: string | null }) | undefined;
+  const loadingClient = !demo && loadingClientReal;
 
   useEffect(() => {
     if (!clientInfo?.id) return;
@@ -114,22 +119,29 @@ export default function PublicClientReport() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientInfo?.id, dateRange.from, dateRange.to]);
 
-  const { data: dashData, isLoading: loadingDash } = trpc.public.getPublicKpis.useQuery(
+  const kpisQuery = trpc.public.getPublicKpis.useQuery(
     { token, from: dateRange.from, to: dateRange.to, managerToken },
-    { enabled: !!clientInfo?.id }
+    { enabled: !demo && !!clientInfo?.id }
   );
-  const { data: postsData, isLoading: postsLoading } = (trpc as any).public.getPublicTopPosts.useQuery(
+  const postsQuery = (trpc as any).public.getPublicTopPosts.useQuery(
     { token, limit: 8, managerToken },
-    { enabled: !!clientInfo?.igUsername }
+    { enabled: !demo && !!clientInfo?.igUsername }
   );
-  const { data: igInsights, isLoading: igInsightsLoading } = (trpc as any).public.getPublicInstagramInsights.useQuery(
+  const igQuery = (trpc as any).public.getPublicInstagramInsights.useQuery(
     { token, from: dateRange.from, to: dateRange.to, managerToken },
-    { enabled: !!clientInfo?.igUsername }
+    { enabled: !demo && !!clientInfo?.igUsername }
   );
-  const { data: publicCreativesData, isLoading: publicCreativesLoading } = (trpc as any).public.getPublicCreatives.useQuery(
+  const creativesQuery = (trpc as any).public.getPublicCreatives.useQuery(
     { token, from: dateRange.from, to: dateRange.to, managerToken },
-    { enabled: !!clientInfo?.id }
+    { enabled: !demo && !!clientInfo?.id }
   );
+  const dashData = demo ? DEMO_KPIS : kpisQuery.data;
+  const loadingDash = !demo && kpisQuery.isLoading;
+  const postsData = demo ? DEMO_POSTS : postsQuery.data;
+  const postsLoading = !demo && postsQuery.isLoading;
+  const igInsights = demo ? DEMO_INSTAGRAM : igQuery.data;
+  const igInsightsLoading = !demo && igQuery.isLoading;
+  const publicCreativesData = demo ? DEMO_CRIATIVOS : creativesQuery.data;
 
   // ── Loading / Error states ─────────────────────────────────────────────────
   if (loadingClient) {
@@ -262,6 +274,16 @@ export default function PublicClientReport() {
           </div>
         </div>
       </header>
+
+      {demo && (
+        <div className="max-w-5xl mx-auto px-4 pt-4">
+          <div className="rounded-xl px-4 py-3 text-xs flex flex-wrap items-center gap-x-3 gap-y-1"
+            style={{ background: "rgba(230,57,70,0.10)", border: "1px solid rgba(230,57,70,0.35)", color: theme.textSecondary }}>
+            <span className="font-bold uppercase" style={{ color: accentColor, letterSpacing: ".14em" }}>Exemplo ilustrativo</span>
+            <span>Clínica e números fictícios. É assim que o relatório mensal chega para cada cliente da {AGENCIA}, com os dados reais da clínica, do Instagram e do CRM.</span>
+          </div>
+        </div>
+      )}
 
       {/* ── Conteúdo: um fluxo só, na ordem do PDF ─────────────────────────
           Sem abas: o cliente lê de cima a baixo e o "salvar em PDF" do
