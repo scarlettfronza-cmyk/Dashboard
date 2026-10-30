@@ -90,6 +90,19 @@ describe("mappingForBoard", () => {
     expect(mapping.valor).toEqual(["cirurgia-valor"]);
   });
 
+  it("Data de conversão vence uma coluna genérica de contato que vem antes", () => {
+    const cols: ColumnMeta[] = [
+      { id: "contato", title: "Data do primeiro contato", type: "date" },
+      { id: "conv", title: "Data conversão", type: "date" },
+    ];
+    expect(mappingFromTitles(cols).dataConversao).toEqual(["conv"]);
+  });
+
+  it("Dr. Mansur: lê a coluna 'Data conversão'", () => {
+    const cols: ColumnMeta[] = [...columns, { id: "conv", title: "Data conversão", type: "date" }];
+    expect(mappingForBoard("18406692406", COLUMN_PROFILES.ellora, cols).dataConversao).toEqual(["conv"]);
+  });
+
   it("Dr. Mansur: valor da cirurgia, nunca o valor da consulta", () => {
     const mapping = mappingForBoard("18406692406", COLUMN_PROFILES.ellora, columns);
     expect(mapping.valor).toEqual(["cirurgia-valor"]);

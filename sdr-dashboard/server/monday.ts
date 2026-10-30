@@ -142,7 +142,10 @@ const TITLE_RULES: { campo: CampoMapeavel; padrao: RegExp; exclui?: RegExp; tipo
   { campo: "dataConsulta", padrao: /\b(consulta|agendamento|agendada)\b/, exclui: /\bfechad[oa]\b/, tipos: ["date"] },
   { campo: "dataFechamento", padrao: /\b(fechamento|fechado|fechada|fechou|venda)\b/, tipos: ["date"] },
   { campo: "dataProcedimento", padrao: /\b(procedimento|cirurgia)\b/, exclui: /\bfechad[oa]\b/, tipos: ["date"] },
-  { campo: "dataConversao", padrao: /\b(convers[ãa]o|entrada|chegou|primeiro contato|lead|contato)\b/, tipos: ["date"] },
+  // "Data conversão" vence títulos genéricos ("contato", "entrada"): no Dr.
+  // Mansur um deles vinha antes e a conversão real ficava sem ser lida.
+  { campo: "dataConversao", padrao: /\bconvers[ãa]o\b/, tipos: ["date"] },
+  { campo: "dataConversao", padrao: /\b(entrada|chegou|primeiro contato|lead|contato)\b/, tipos: ["date"] },
   { campo: "obs", padrao: /\b(obs|observa|coment|anota|nota)\b/, tipos: ["text", "long-text", "long_text"] },
 ];
 
@@ -219,7 +222,13 @@ export const BOARD_COLUMN_OVERRIDES: Record<string, Partial<Record<CampoMapeavel
   // Dr. Jonas Lenzi: 1 fechamento e R$ 8.000 em agosto.
   "18406696056": { dataFechamento: ["Data da consulta"], valor: ["Valor do procedimento"] },
   // Dr. Mansur: 1 fechamento e R$ 28.000 em agosto.
-  "18406692406": { dataFechamento: ["Data da consulta"], valor: ["Valor da cirurgia"] },
+  // Conversão explícita: em outubro de 2026 eram 10 agendamentos (6 em
+  // outubro e 4 para novembro), e sem ler "Data conversão" o painel via 6.
+  "18406692406": {
+    dataFechamento: ["Data da consulta"],
+    valor: ["Valor da cirurgia"],
+    dataConversao: ["Data conversão", "Data de conversão"],
+  },
   // Dr. Lucas Moura: 2 fechamentos e R$ 33.000 em agosto.
   "18418032339": { dataFechamento: ["Data da consulta"], valor: ["Valor do procedimento"] },
   // Dra. Estéfani Molinar: a venda conta no mês da cirurgia. Em outubro de
