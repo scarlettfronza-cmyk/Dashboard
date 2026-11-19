@@ -132,7 +132,17 @@ export async function listGroups(): Promise<{ id: string; name: string }[]> {
  * `configurado` diz se as variáveis existem; `connected` se o celular está
  * pareado na instância. São problemas diferentes, com soluções diferentes.
  */
-export type StatusZap = { configurado: boolean; faltando: string[]; connected: boolean; error?: string };
+export type StatusZap = {
+  configurado: boolean; faltando: string[]; connected: boolean; error?: string;
+  /** Começo do ID da instância, para conferir no painel do Z-API qual número está ligado. */
+  instancia?: string;
+};
+
+/** Primeiros caracteres do ID da instância — o suficiente para reconhecer, sem expor o ID inteiro. */
+export function prefixoInstancia(id: string | undefined | null, tamanho = 10): string | undefined {
+  const limpo = (id ?? "").trim();
+  return limpo ? `${limpo.slice(0, tamanho)}…` : undefined;
+}
 
 export async function checkStatus(): Promise<StatusZap> {
   const c = credenciais();
@@ -144,9 +154,9 @@ export async function checkStatus(): Promise<StatusZap> {
     const url = `${ZAPI_BASE}/instances/${c.instanceId}/token/${c.token}/status`;
     const resp = await fetch(url, { headers: getHeaders(c.clientToken!) });
     const data = await resp.json() as { connected?: boolean; error?: string };
-    return { configurado: true, faltando: [], connected: data.connected === true, error: data.error };
+    return { configurado: true, faltando: [], connected: data.connected === true, error: data.error, instancia: prefixoInstancia(c.instanceId) };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    return { configurado: true, faltando: [], connected: false, error: message };
+    return { configurado: true, faltando: [], connected: false, error: message, instancia: prefixoInstancia(c.instanceId) };
   }
 }

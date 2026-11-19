@@ -52,6 +52,11 @@ export function StatusWhatsApp({ managerToken }: { managerToken: string }) {
       </div>
       <p className="text-sm mt-2 font-medium" style={{ color: cor }}>{titulo}</p>
       {detalhe && <p className="text-xs mt-1 leading-relaxed" style={{ color: C.suave }}>{detalhe}</p>}
+      {d?.instancia && (
+        <p className="text-[11px] mt-1.5" style={{ color: C.suave }}>
+          Instância ligada: <code className="px-1 rounded" style={{ background: "oklch(0.22 0.012 255)" }}>{d.instancia}</code> — compare com a coluna ID no painel do Z-API para saber qual número está em uso.
+        </p>
+      )}
     </section>
   );
 }
