@@ -680,3 +680,24 @@ export async function syncMondayBoard(
     },
   };
 }
+
+// ── Todos os quadros que o token enxerga ───────────────────────────────────
+export type QuadroMonday = { id: string; nome: string; workspace: string | null; itens: number | null };
+
+/**
+ * Lista os quadros ativos visíveis para o token, em páginas de 100. Serve
+ * para a gestora copiar o Board ID sem abrir o Monday.
+ */
+export async function listarQuadrosMonday(token: string): Promise<QuadroMonday[]> {
+  const todos: QuadroMonday[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const data = (await mondayGraphQL(
+      `query ($page: Int!) { boards(limit: 100, page: $page, state: active, order_by: used_at) { id name items_count workspace { name } } }`,
+      { page }, token, 30_000,
+    )) as { boards?: Array<{ id: string; name: string; items_count?: number | null; workspace?: { name?: string | null } | null }> };
+    const lote = data.boards ?? [];
+    for (const b of lote) todos.push({ id: String(b.id), nome: b.name, workspace: b.workspace?.name ?? null, itens: b.items_count ?? null });
+    if (lote.length < 100) break;
+  }
+  return todos;
+}

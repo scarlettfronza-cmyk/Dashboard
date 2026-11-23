@@ -450,6 +450,31 @@ export const managersRouter = router({
       };
     }),
 
+  // ── Todos os quadros do Monday que o token enxerga, com o cliente ligado ──
+  quadrosDoTokenMonday: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const { managerId } = await verifyManagerJwt(input.token);
+      const tokenMonday = await getSystemSetting("monday_api_token");
+      if (!tokenMonday) return { configurado: false, quadros: [] as Array<{ id: string; nome: string; workspace: string | null; itens: number | null; cliente: string | null }> };
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const { listarQuadrosMonday } = await import("../mondaySync");
+      const [quadros, vinculos] = await Promise.all([
+        listarQuadrosMonday(tokenMonday),
+        db.select({ nome: clients.name, boardId: clients.mondayBoardId })
+          .from(managerClients).innerJoin(clients, eq(clients.id, managerClients.clientId))
+          .where(eq(managerClients.managerId, managerId)),
+      ]);
+      const clienteDoQuadro = (id: string) => vinculos.find((v) => (v.boardId ?? "").trim() === id)?.nome ?? null;
+      return {
+        configurado: true,
+        quadros: quadros
+          .map((q) => ({ ...q, cliente: clienteDoQuadro(q.id) }))
+          .sort((a, b) => (a.cliente ? 0 : 1) - (b.cliente ? 0 : 1) || a.nome.localeCompare(b.nome, "pt-BR")),
+      };
+    }),
+
   getTokenAgencia: publicProcedure
     .input(z.object({ token: z.string() }))
     .query(async ({ input }) => {
