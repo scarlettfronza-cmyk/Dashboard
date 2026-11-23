@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { TokenAgencia } from "@/components/report/TokenAgencia";
+import { ContasAnuncio } from "@/components/report/ContasAnuncio";
 import { StatusWhatsApp } from "@/components/report/StatusWhatsApp";
 import { AlertasTelegram } from "@/components/report/AlertasTelegram";
 import { Equipe } from "@/components/report/Equipe";
@@ -84,6 +85,7 @@ export default function ManagerSettings() {
         <div className="px-5 py-5 max-w-6xl mx-auto">
 
           <TokenAgencia managerToken={token ?? ""} />
+          <ContasAnuncio managerToken={token ?? ""} />
           <StatusWhatsApp managerToken={token ?? ""} />
           <AlertasTelegram managerToken={token ?? ""} />
           <Equipe managerToken={token ?? ""} />

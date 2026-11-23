@@ -586,12 +586,12 @@ export async function paginarGraph<T>(
   return itens;
 }
 
-export async function listAdAccounts(accessToken: string): Promise<Array<{ id: string; name: string; currency: string }>> {
-  const contas = await paginarGraph<{ id: string; name: string; currency: string }>(
+export async function listAdAccounts(accessToken: string): Promise<Array<{ id: string; name: string; currency: string; accountStatus: number | null }>> {
+  const contas = await paginarGraph<{ id: string; name: string; currency: string; account_status?: number }>(
     `${GRAPH_API_BASE}/me/adaccounts`,
     { access_token: accessToken, fields: "id,name,currency,account_status", limit: 200 },
   );
-  return contas.map((a) => ({ id: a.id, name: a.name, currency: a.currency }));
+  return contas.map((a) => ({ id: a.id, name: a.name, currency: a.currency, accountStatus: a.account_status ?? null }));
 }
 
 /**

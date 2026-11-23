@@ -418,6 +418,38 @@ export const managersRouter = router({
   // Guardar o token por cliente obrigava a colar o mesmo valor em cada um e a
   // repetir tudo a cada renovação. Como a agência usa um único usuário do
   // sistema no Meta, o token é um só — a conta de anúncio é que é por cliente.
+  // ── Todas as contas de anúncio que o token da agência enxerga ─────────────
+  // Com nome, ID, status e qual cliente do painel está ligado a cada uma.
+  contasDoTokenAgencia: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const { managerId } = await verifyManagerJwt(input.token);
+      const tokenAgencia = await getSystemSetting(CHAVE_TOKEN_AGENCIA);
+      if (!tokenAgencia) return { configurado: false, contas: [] as Array<{ id: string; name: string; currency: string; status: string; gravidade: "ok" | "aviso" | "critico"; cliente: string | null }> };
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const { mesmoId } = await import("../metaDiagnostico");
+      const [contas, vinculos] = await Promise.all([
+        listAdAccounts(tokenAgencia),
+        db.select({ nome: clients.name, adAccountId: integrations.adAccountId })
+          .from(managerClients)
+          .innerJoin(clients, eq(clients.id, managerClients.clientId))
+          .innerJoin(integrations, and(eq(integrations.clientId, clients.id), eq(integrations.provider, "meta_token")))
+          .where(eq(managerClients.managerId, managerId)),
+      ]);
+      const clienteDaConta = (id: string) =>
+        vinculos.find((v) => (v.adAccountId ?? "").split(",").some((c) => mesmoId(c, id)))?.nome ?? null;
+      return {
+        configurado: true,
+        contas: contas
+          .map((c) => {
+            const st = descreverStatus(c.accountStatus);
+            return { id: c.id, name: c.name, currency: c.currency, status: st.rotulo, gravidade: st.gravidade, cliente: clienteDaConta(c.id) };
+          })
+          .sort((a, b) => (a.cliente ? 0 : 1) - (b.cliente ? 0 : 1) || a.name.localeCompare(b.name, "pt-BR")),
+      };
+    }),
+
   getTokenAgencia: publicProcedure
     .input(z.object({ token: z.string() }))
     .query(async ({ input }) => {
