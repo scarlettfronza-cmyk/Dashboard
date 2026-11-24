@@ -154,9 +154,10 @@ export async function runBudgetCheck(threshold = LOW_BALANCE_THRESHOLD): Promise
 
     text += `_Recarregue antes que as campanhas pausem!_`;
 
-    const { ok: sent } = await sendTelegram(text);
+    const { enviarAlerta } = await import("./alertas");
+    const { ok: sent } = await enviarAlerta(text);
     if (sent) {
-      console.log(`[Budget Check] Sent Telegram alert for ${lowBalanceAlerts.length} client(s) (${criticalOnes.length} critical, ${lowOnes.length} low)`);
+      console.log(`[Budget Check] Sent alert for ${lowBalanceAlerts.length} client(s) (${criticalOnes.length} critical, ${lowOnes.length} low)`);
     }
   } else {
     console.log(`[Budget Check] All prepaid accounts OK or in cooldown (no alerts sent)`);
@@ -209,7 +210,8 @@ export async function runAccountStatusCheck(): Promise<{
   });
   const texto = montarAlertaContas(novos);
   if (texto) {
-    const { ok } = await sendTelegram(texto);
+    const { enviarAlerta } = await import("./alertas");
+    const { ok } = await enviarAlerta(texto);
     if (ok) for (const p of novos) statusCooldowns.set(p.id, agora);
     console.log(`[Account Status] ${novos.length} conta(s) com problema; alerta ${ok ? "enviado" : "falhou"}`);
   }

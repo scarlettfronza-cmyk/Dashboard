@@ -30,6 +30,12 @@ function getHeaders(clientToken: string) {
  * @param groupId - The WhatsApp group ID (e.g. "120363XXXXXXXXXX@g.us")
  * @param message - The text message to send
  */
+/** Z-API configurado no ambiente (as três variáveis presentes). */
+export function zapConfigurado(): boolean {
+  return credenciais().faltando.length === 0;
+}
+
+/** Manda texto para um grupo ou para um número (só dígitos, com DDI). */
 export async function sendGroupMessage(groupId: string, message: string): Promise<{ success: boolean; error?: string }> {
   const c = credenciais();
   if (c.faltando.length) {

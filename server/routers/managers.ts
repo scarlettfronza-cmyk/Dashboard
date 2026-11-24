@@ -858,11 +858,49 @@ export const managersRouter = router({
     .input(z.object({ token: z.string() }))
     .query(async ({ input }) => {
       await verifyManagerJwt(input.token);
-      const { telegramFaltando } = await import("../budgetCron");
-      const faltando = telegramFaltando();
+      const { statusCanais, formatarNumeroWhatsApp } = await import("../alertas");
+      const canais = await statusCanais();
       const db = await getDb();
       const prePagos = db ? (await db.select({ id: clients.id }).from(clients).where(eq(clients.isPrePaid, 1))).length : 0;
-      return { configurado: faltando.length === 0, faltando, prePagos, limiteBaixo: 200, limiteCritico: 50 };
+      return {
+        // "configurado" = existe ao menos um canal que recebe os avisos.
+        configurado: canais.whatsapp.ativo || canais.telegram.ativo,
+        faltando: canais.telegram.faltando,
+        whatsapp: {
+          numero: canais.whatsapp.numero,
+          numeroFormatado: canais.whatsapp.numero ? formatarNumeroWhatsApp(canais.whatsapp.numero) : null,
+          zapConfigurado: canais.whatsapp.zapConfigurado,
+          ativo: canais.whatsapp.ativo,
+        },
+        telegramAtivo: canais.telegram.ativo,
+        prePagos, limiteBaixo: 200, limiteCritico: 50,
+      };
+    }),
+
+  salvarWhatsappAlerta: publicProcedure
+    .input(z.object({ token: z.string(), numero: z.string().max(40) }))
+    .mutation(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const { salvarNumeroAlerta, normalizarNumeroWhatsApp, formatarNumeroWhatsApp } = await import("../alertas");
+      if (input.numero.trim() && !normalizarNumeroWhatsApp(input.numero)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Número inválido. Use DDD + número, ex.: (41) 99999-8888." });
+      }
+      const numero = await salvarNumeroAlerta(input.numero);
+      return { numero, numeroFormatado: numero ? formatarNumeroWhatsApp(numero) : null };
+    }),
+
+  testarWhatsappAlerta: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const { obterNumeroAlerta } = await import("../alertas");
+      const { sendGroupMessage, zapConfigurado } = await import("../zapApi");
+      const numero = await obterNumeroAlerta();
+      if (!numero) throw new TRPCError({ code: "BAD_REQUEST", message: "Salve seu número primeiro." });
+      if (!zapConfigurado()) throw new TRPCError({ code: "BAD_REQUEST", message: "Z-API não configurado no Railway (veja o cartão do WhatsApp)." });
+      const r = await sendGroupMessage(numero, "✅ *Teste do dashboard*\nOs avisos de saldo baixo e de cartão recusado vão chegar aqui.");
+      if (!r.success) throw new TRPCError({ code: "BAD_REQUEST", message: r.error ?? "Falha ao enviar." });
+      return { ok: true };
     }),
 
   testarTelegram: publicProcedure

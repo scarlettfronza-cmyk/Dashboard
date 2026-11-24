@@ -1,11 +1,10 @@
 /**
- * Alertas de saldo baixo no Telegram, na tela de Configurações.
+ * Alertas de conta (saldo baixo, cartão recusado), na tela de Configurações.
  *
- * O servidor confere a cada duas horas o saldo das contas marcadas como
- * pré-pagas e avisa no Telegram abaixo de R$ 200 (crítico abaixo de R$ 50).
- * Este card mostra se o bot está configurado, manda uma mensagem de teste
- * e roda a conferência na hora — sem esperar as duas horas para saber se
- * está funcionando.
+ * O servidor confere a cada duas horas e avisa no WhatsApp da gestora, pelo
+ * Z-API, e no Telegram quando ele estiver configurado. Este card guarda o
+ * número, manda mensagem de teste e roda a conferência na hora — sem
+ * esperar as duas horas para saber se está funcionando.
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -23,6 +22,16 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
   const [resultado, setResultado] = useState<Array<{ name: string; balance: number | null; status: string }> | null>(null);
   const [contas, setContas] = useState<Array<{ name: string; status: { rotulo: string; detalhe: string; gravidade: "ok" | "aviso" | "critico" } | null; erro?: string }> | null>(null);
 
+  const [numero, setNumero] = useState("");
+  const [editando, setEditando] = useState(false);
+  const salvarNumero = trpc.managers.salvarWhatsappAlerta.useMutation({
+    onSuccess: (r) => { toast.success(r.numero ? `Avisos vão para ${r.numeroFormatado}.` : "Número removido."); setNumero(""); setEditando(false); status.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const testarZap = trpc.managers.testarWhatsappAlerta.useMutation({
+    onSuccess: () => toast.success("Mensagem de teste enviada — confere no seu WhatsApp."),
+    onError: (e) => toast.error(e.message),
+  });
   const testar = trpc.managers.testarTelegram.useMutation({
     onSuccess: () => toast.success("Mensagem de teste enviada — confere no Telegram."),
     onError: (e) => toast.error(e.message),
@@ -31,7 +40,7 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
     onSuccess: (r) => {
       setResultado(r.results); setContas(r.contas);
       const n = r.alerts + r.alertasConta;
-      toast.success(n > 0 ? `${n} alerta(s) enviado(s) no Telegram.` : "Tudo certo: nenhum saldo baixo nem problema de conta.");
+      toast.success(n > 0 ? `${n} alerta(s) enviado(s).` : "Tudo certo: nenhum saldo baixo nem problema de conta.");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -44,17 +53,59 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <span className="text-base">🔔</span>
-          <h2 className="text-sm font-semibold" style={{ color: C.texto }}>Alertas de conta (Telegram)</h2>
+          <h2 className="text-sm font-semibold" style={{ color: C.texto }}>Alertas de conta (WhatsApp e Telegram)</h2>
         </div>
         <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ color: cor, background: `color-mix(in oklch, ${cor} 15%, transparent)`, border: `1px solid color-mix(in oklch, ${cor} 40%, transparent)` }}>
           {!d ? "…" : d.configurado ? "configurado" : "pendente"}
         </span>
       </div>
 
-      {d && !d.configurado && (
-        <p className="text-xs mt-2 leading-relaxed" style={{ color: C.suave }}>
-          Faltam no Railway (Variables): {d.faltando.map((v) => <code key={v} className="mx-0.5 px-1 rounded" style={{ background: "oklch(0.22 0.012 255)" }}>{v}</code>)}.
-          O passo a passo (criar o bot no BotFather e descobrir o chat id) está no <code>DEPLOY.md</code>, seção Telegram.
+      {/* WhatsApp: canal principal. O número fica no banco, salvo aqui. */}
+      {d && (
+        <div className="mt-3 rounded-lg px-3 py-2.5" style={{ background: "oklch(0.14 0.012 255)", border: `1px solid ${C.borda}` }}>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-xs font-semibold m-0" style={{ color: C.texto }}>
+              💬 Seu WhatsApp
+              {d.whatsapp.numero && !editando && <span className="ml-2 font-mono font-normal" style={{ color: C.suave }}>{d.whatsapp.numeroFormatado}</span>}
+            </p>
+            {d.whatsapp.numero && !editando && (
+              <div className="flex gap-2">
+                <button onClick={() => testarZap.mutate({ token: managerToken })} disabled={!d.whatsapp.zapConfigurado || testarZap.isPending}
+                  className="text-xs font-semibold px-3 py-1 rounded-md disabled:opacity-40"
+                  style={{ background: "oklch(0.60 0.18 240 / 0.15)", color: "oklch(0.80 0.15 240)", border: "1px solid oklch(0.60 0.18 240 / 0.35)" }}>
+                  {testarZap.isPending ? "Enviando..." : "Testar no WhatsApp"}
+                </button>
+                <button onClick={() => { setEditando(true); setNumero(""); }} className="text-xs px-2 py-1 rounded-md" style={{ color: C.fraco, border: `1px solid ${C.borda}` }}>Trocar</button>
+                <button onClick={() => salvarNumero.mutate({ token: managerToken, numero: "" })} className="text-xs px-2 py-1 rounded-md" style={{ color: C.marca, border: `1px solid ${C.borda}` }}>Remover</button>
+              </div>
+            )}
+          </div>
+          {(!d.whatsapp.numero || editando) && (
+            <div className="flex gap-2 mt-2 flex-wrap">
+              <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="DDD + número, ex.: (41) 99999-8888" inputMode="tel"
+                className="flex-1 min-w-[220px] px-3 py-1.5 rounded-md text-sm outline-none"
+                style={{ background: "oklch(0.12 0.012 255)", border: `1px solid ${C.borda}`, color: C.texto }} />
+              <button onClick={() => salvarNumero.mutate({ token: managerToken, numero })} disabled={numero.replace(/\D/g, "").length < 10 || salvarNumero.isPending}
+                className="text-xs font-semibold px-3 py-1.5 rounded-md text-white disabled:opacity-40" style={{ background: C.marca }}>
+                {salvarNumero.isPending ? "Salvando..." : "Salvar número"}
+              </button>
+              {editando && <button onClick={() => setEditando(false)} className="text-xs px-2" style={{ color: C.fraco }}>cancelar</button>}
+            </div>
+          )}
+          <p className="text-[11px] mt-1.5 m-0" style={{ color: d.whatsapp.zapConfigurado ? C.fraco : C.aviso }}>
+            {d.whatsapp.zapConfigurado
+              ? "Os avisos saem pelo mesmo WhatsApp da agência que manda os relatórios (Z-API)."
+              : "O Z-API ainda não está configurado no Railway — sem ele o aviso não sai. Veja o cartão do WhatsApp acima."}
+          </p>
+        </div>
+      )}
+
+      {/* Telegram: opcional. Fica ativo enquanto as variáveis existirem no Railway. */}
+      {d && (
+        <p className="text-[11px] mt-2 m-0" style={{ color: C.fraco }}>
+          Telegram: {d.telegramAtivo
+            ? <>ativo, também recebe os avisos. Para desligar, apague <code>TELEGRAM_BOT_TOKEN</code> e <code>TELEGRAM_CHAT_ID</code> no Railway.</>
+            : <>desligado (opcional). Faltam {d.faltando.map((v) => <code key={v} className="mx-0.5 px-1 rounded" style={{ background: "oklch(0.22 0.012 255)" }}>{v}</code>)} no Railway.</>}
         </p>
       )}
       {d && d.configurado && (
@@ -67,11 +118,13 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
       )}
 
       <div className="flex gap-2 mt-3 flex-wrap">
-        <button onClick={() => testar.mutate({ token: managerToken })} disabled={!d?.configurado || testar.isPending}
-          className="text-xs font-semibold px-3 py-1.5 rounded-md disabled:opacity-40"
-          style={{ background: "oklch(0.60 0.18 240 / 0.15)", color: "oklch(0.80 0.15 240)", border: "1px solid oklch(0.60 0.18 240 / 0.35)" }}>
-          {testar.isPending ? "Enviando..." : "Enviar mensagem de teste"}
-        </button>
+        {d?.telegramAtivo && (
+          <button onClick={() => testar.mutate({ token: managerToken })} disabled={testar.isPending}
+            className="text-xs font-semibold px-3 py-1.5 rounded-md disabled:opacity-40"
+            style={{ background: "oklch(0.60 0.18 240 / 0.15)", color: "oklch(0.80 0.15 240)", border: "1px solid oklch(0.60 0.18 240 / 0.35)" }}>
+            {testar.isPending ? "Enviando..." : "Testar no Telegram"}
+          </button>
+        )}
         <button onClick={() => conferir.mutate({ token: managerToken })} disabled={!d?.configurado || conferir.isPending}
           className="text-xs font-semibold px-3 py-1.5 rounded-md disabled:opacity-40"
           style={{ background: `color-mix(in oklch, ${C.marca} 15%, transparent)`, color: "#ff8a94", border: `1px solid color-mix(in oklch, ${C.marca} 40%, transparent)` }}>

@@ -195,7 +195,13 @@ Ao clicar em **💬 WhatsApp** no painel, abre uma prévia da mensagem — o
 texto pode ser ajustado antes de enviar. O link já abre o relatório no
 período que estava selecionado no painel.
 
-## 6d. Alertas de saldo baixo no Telegram
+## 6d. Alertas de saldo baixo no WhatsApp (e Telegram, opcional)
+
+O canal principal dos avisos é o WhatsApp da gestora: em Configurações, cartão "Alertas de conta", salve o seu número (DDD + número). Os avisos saem pelo mesmo Z-API dos relatórios (seção 6c), então ele precisa estar configurado e pareado. O botão "Testar no WhatsApp" confirma na hora.
+
+O Telegram abaixo continua funcionando como segundo canal enquanto as duas variáveis existirem no Railway; para desligar, apague-as.
+
+### Telegram (opcional)
 
 A cada 2 horas o sistema confere todas as contas de anúncio e avisa no
 Telegram quando alguma está com **cartão recusado / pagamento pendente**,
