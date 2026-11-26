@@ -858,7 +858,7 @@ export const managersRouter = router({
     .input(z.object({ token: z.string() }))
     .query(async ({ input }) => {
       await verifyManagerJwt(input.token);
-      const { statusCanais, formatarNumeroWhatsApp } = await import("../alertas");
+      const { statusCanais } = await import("../alertas");
       const canais = await statusCanais();
       const db = await getDb();
       const prePagos = db ? (await db.select({ id: clients.id }).from(clients).where(eq(clients.isPrePaid, 1))).length : 0;
@@ -868,7 +868,8 @@ export const managersRouter = router({
         faltando: canais.telegram.faltando,
         whatsapp: {
           numero: canais.whatsapp.numero,
-          numeroFormatado: canais.whatsapp.numero ? formatarNumeroWhatsApp(canais.whatsapp.numero) : null,
+          numeroFormatado: canais.whatsapp.rotulo,
+          grupo: canais.whatsapp.grupo,
           zapConfigurado: canais.whatsapp.zapConfigurado,
           ativo: canais.whatsapp.ativo,
         },
@@ -889,6 +890,16 @@ export const managersRouter = router({
       return { numero, numeroFormatado: numero ? formatarNumeroWhatsApp(numero) : null };
     }),
 
+  salvarGrupoAlerta: publicProcedure
+    .input(z.object({ token: z.string(), grupoId: z.string().min(3).max(80), nome: z.string().max(120) }))
+    .mutation(async ({ input }) => {
+      await verifyManagerJwt(input.token);
+      const { salvarGrupoAlerta, ehGrupoWhatsApp } = await import("../alertas");
+      if (!ehGrupoWhatsApp(input.grupoId)) throw new TRPCError({ code: "BAD_REQUEST", message: "Isso não parece um ID de grupo do Z-API." });
+      await salvarGrupoAlerta(input.grupoId, input.nome);
+      return { ok: true };
+    }),
+
   testarWhatsappAlerta: publicProcedure
     .input(z.object({ token: z.string() }))
     .mutation(async ({ input }) => {
@@ -896,7 +907,7 @@ export const managersRouter = router({
       const { obterNumeroAlerta } = await import("../alertas");
       const { sendGroupMessage, zapConfigurado } = await import("../zapApi");
       const numero = await obterNumeroAlerta();
-      if (!numero) throw new TRPCError({ code: "BAD_REQUEST", message: "Salve seu número primeiro." });
+      if (!numero) throw new TRPCError({ code: "BAD_REQUEST", message: "Salve seu número ou escolha um grupo primeiro." });
       if (!zapConfigurado()) throw new TRPCError({ code: "BAD_REQUEST", message: "Z-API não configurado no Railway (veja o cartão do WhatsApp)." });
       const r = await sendGroupMessage(numero, "✅ *Teste do dashboard*\nOs avisos de saldo baixo e de cartão recusado vão chegar aqui.");
       if (!r.success) throw new TRPCError({ code: "BAD_REQUEST", message: r.error ?? "Falha ao enviar." });

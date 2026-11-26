@@ -12,6 +12,17 @@ import { sendTelegram, telegramFaltando } from "./budgetCron";
 import { sendGroupMessage, zapConfigurado } from "./zapApi";
 
 export const CHAVE_WHATSAPP_ALERTA = "alerta_whatsapp_numero";
+/** Nome do grupo escolhido, só para mostrar na tela. */
+export const CHAVE_WHATSAPP_ALERTA_ROTULO = "alerta_whatsapp_rotulo";
+
+/**
+ * ID de grupo do Z-API: vem como "1203630195026-group" ou "...@g.us",
+ * nunca só dígitos. Um número de pessoa é só dígitos.
+ */
+export function ehGrupoWhatsApp(destino: string | null | undefined): boolean {
+  const d = (destino ?? "").trim();
+  return Boolean(d) && /[^0-9]/.test(d);
+}
 
 /**
  * Só dígitos, com o 55 do Brasil na frente quando vier sem ele.
@@ -29,14 +40,30 @@ export function formatarNumeroWhatsApp(numero: string): string {
   return m ? `+55 (${m[1]}) ${m[2]}-${m[3]}` : `+${numero}`;
 }
 
+/** Destino dos avisos: número de pessoa (normalizado) ou ID de grupo. */
 export async function obterNumeroAlerta(): Promise<string | null> {
-  return normalizarNumeroWhatsApp(await getSystemSetting(CHAVE_WHATSAPP_ALERTA));
+  const salvo = await getSystemSetting(CHAVE_WHATSAPP_ALERTA);
+  if (ehGrupoWhatsApp(salvo)) return salvo!.trim();
+  return normalizarNumeroWhatsApp(salvo);
+}
+
+export async function obterRotuloAlerta(): Promise<string | null> {
+  const destino = await obterNumeroAlerta();
+  if (!destino) return null;
+  if (ehGrupoWhatsApp(destino)) return (await getSystemSetting(CHAVE_WHATSAPP_ALERTA_ROTULO)) || "grupo";
+  return formatarNumeroWhatsApp(destino);
 }
 
 export async function salvarNumeroAlerta(entrada: string): Promise<string | null> {
   const numero = normalizarNumeroWhatsApp(entrada);
   await setSystemSetting(CHAVE_WHATSAPP_ALERTA, numero ?? "");
+  await setSystemSetting(CHAVE_WHATSAPP_ALERTA_ROTULO, "");
   return numero;
+}
+
+export async function salvarGrupoAlerta(grupoId: string, nome: string): Promise<void> {
+  await setSystemSetting(CHAVE_WHATSAPP_ALERTA, grupoId.trim());
+  await setSystemSetting(CHAVE_WHATSAPP_ALERTA_ROTULO, nome.trim());
 }
 
 export type ResultadoCanal = { ok: boolean; erro?: string };
@@ -59,7 +86,7 @@ export async function enviarAlerta(texto: string): Promise<ResultadoAlerta> {
 export async function statusCanais() {
   const numero = await obterNumeroAlerta();
   return {
-    whatsapp: { numero, zapConfigurado: zapConfigurado(), ativo: Boolean(numero) && zapConfigurado() },
+    whatsapp: { numero, rotulo: await obterRotuloAlerta(), grupo: ehGrupoWhatsApp(numero), zapConfigurado: zapConfigurado(), ativo: Boolean(numero) && zapConfigurado() },
     telegram: { faltando: telegramFaltando(), ativo: telegramFaltando().length === 0 },
   };
 }

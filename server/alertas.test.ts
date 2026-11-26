@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizarNumeroWhatsApp, formatarNumeroWhatsApp } from "./alertas";
+import { normalizarNumeroWhatsApp, formatarNumeroWhatsApp, ehGrupoWhatsApp } from "./alertas";
 
 describe("normalizarNumeroWhatsApp", () => {
   it("aceita celular com DDD e coloca o 55", () => {
@@ -23,5 +23,15 @@ describe("formatarNumeroWhatsApp", () => {
   });
   it("outro país sai só com o +", () => {
     expect(formatarNumeroWhatsApp("351912345678")).toBe("+351912345678");
+  });
+});
+
+describe("ehGrupoWhatsApp", () => {
+  it("ID de grupo tem algo além de dígitos; número de pessoa não", () => {
+    expect(ehGrupoWhatsApp("120363019502650035-group")).toBe(true);
+    expect(ehGrupoWhatsApp("5541999998888-1612345678@g.us")).toBe(true);
+    expect(ehGrupoWhatsApp("5541999998888")).toBe(false);
+    expect(ehGrupoWhatsApp("")).toBe(false);
+    expect(ehGrupoWhatsApp(null)).toBe(false);
   });
 });

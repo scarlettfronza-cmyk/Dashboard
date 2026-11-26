@@ -28,6 +28,14 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
     onSuccess: (r) => { toast.success(r.numero ? `Avisos vão para ${r.numeroFormatado}.` : "Número removido."); setNumero(""); setEditando(false); status.refetch(); },
     onError: (e) => toast.error(e.message),
   });
+  const [escolhendoGrupo, setEscolhendoGrupo] = useState(false);
+  const [buscaGrupo, setBuscaGrupo] = useState("");
+  const grupos = trpc.whatsapp.listGroupsAsManager.useQuery({ managerToken }, { enabled: escolhendoGrupo && !!managerToken, staleTime: 60_000 });
+  const salvarGrupo = trpc.managers.salvarGrupoAlerta.useMutation({
+    onSuccess: () => { toast.success("Avisos vão para o grupo."); setEscolhendoGrupo(false); setEditando(false); status.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const gruposFiltrados = (grupos.data ?? []).filter((g) => g.name.toLowerCase().includes(buscaGrupo.toLowerCase()));
   const testarZap = trpc.managers.testarWhatsappAlerta.useMutation({
     onSuccess: () => toast.success("Mensagem de teste enviada — confere no seu WhatsApp."),
     onError: (e) => toast.error(e.message),
@@ -66,7 +74,11 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <p className="text-xs font-semibold m-0" style={{ color: C.texto }}>
               💬 Seu WhatsApp
-              {d.whatsapp.numero && !editando && <span className="ml-2 font-mono font-normal" style={{ color: C.suave }}>{d.whatsapp.numeroFormatado}</span>}
+              {d.whatsapp.numero && !editando && (
+                <span className="ml-2 font-normal" style={{ color: C.suave }}>
+                  {d.whatsapp.grupo ? <>grupo <b style={{ color: C.texto }}>{d.whatsapp.numeroFormatado}</b></> : <span className="font-mono">{d.whatsapp.numeroFormatado}</span>}
+                </span>
+              )}
             </p>
             {d.whatsapp.numero && !editando && (
               <div className="flex gap-2">
@@ -80,7 +92,7 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
               </div>
             )}
           </div>
-          {(!d.whatsapp.numero || editando) && (
+          {(!d.whatsapp.numero || editando) && !escolhendoGrupo && (
             <div className="flex gap-2 mt-2 flex-wrap">
               <input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="DDD + número, ex.: (41) 99999-8888" inputMode="tel"
                 className="flex-1 min-w-[220px] px-3 py-1.5 rounded-md text-sm outline-none"
@@ -89,7 +101,37 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
                 className="text-xs font-semibold px-3 py-1.5 rounded-md text-white disabled:opacity-40" style={{ background: C.marca }}>
                 {salvarNumero.isPending ? "Salvando..." : "Salvar número"}
               </button>
+              <button onClick={() => { setEscolhendoGrupo(true); setBuscaGrupo(""); }}
+                className="text-xs font-semibold px-3 py-1.5 rounded-md" style={{ color: C.suave, border: `1px solid ${C.borda}` }}>
+                Ou escolher um grupo
+              </button>
               {editando && <button onClick={() => setEditando(false)} className="text-xs px-2" style={{ color: C.fraco }}>cancelar</button>}
+            </div>
+          )}
+          {escolhendoGrupo && (
+            <div className="mt-2">
+              <p className="text-[11px] m-0 mb-1.5" style={{ color: C.suave }}>
+                Dica: crie um grupo no WhatsApp só com você (ex.: "Avisos do dashboard") e escolha ele aqui. As mensagens chegam como não lidas, separadas da sua conversa.
+              </p>
+              <div className="flex gap-2 flex-wrap">
+                <input value={buscaGrupo} onChange={(e) => setBuscaGrupo(e.target.value)} placeholder="Buscar grupo pelo nome"
+                  className="flex-1 min-w-[220px] px-3 py-1.5 rounded-md text-sm outline-none"
+                  style={{ background: "oklch(0.12 0.012 255)", border: `1px solid ${C.borda}`, color: C.texto }} />
+                <button onClick={() => grupos.refetch()} className="text-xs px-2 py-1 rounded-md" style={{ color: C.fraco, border: `1px solid ${C.borda}` }}>atualizar</button>
+                <button onClick={() => setEscolhendoGrupo(false)} className="text-xs px-2" style={{ color: C.fraco }}>cancelar</button>
+              </div>
+              <div className="mt-2 max-h-48 overflow-y-auto rounded-md" style={{ border: `1px solid ${C.borda}` }}>
+                {grupos.isLoading ? (
+                  <p className="text-xs px-3 py-2 m-0" style={{ color: C.fraco }}>Buscando grupos no Z-API…</p>
+                ) : gruposFiltrados.length === 0 ? (
+                  <p className="text-xs px-3 py-2 m-0" style={{ color: C.fraco }}>Nenhum grupo encontrado. Se acabou de criar, espere um minuto e clique em atualizar.</p>
+                ) : gruposFiltrados.map((g) => (
+                  <button key={g.id} onClick={() => salvarGrupo.mutate({ token: managerToken, grupoId: g.id, nome: g.name })} disabled={salvarGrupo.isPending}
+                    className="w-full text-left text-xs px-3 py-2 border-t hover:bg-white/5 disabled:opacity-50" style={{ borderColor: C.borda, color: C.texto }}>
+                    {g.name} <span className="font-mono" style={{ color: C.fraco }}>· {g.id}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <p className="text-[11px] mt-1.5 m-0" style={{ color: d.whatsapp.zapConfigurado ? C.fraco : C.aviso }}>
