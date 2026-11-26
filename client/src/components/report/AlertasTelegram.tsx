@@ -87,7 +87,12 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
                   style={{ background: "oklch(0.60 0.18 240 / 0.15)", color: "oklch(0.80 0.15 240)", border: "1px solid oklch(0.60 0.18 240 / 0.35)" }}>
                   {testarZap.isPending ? "Enviando..." : "Testar no WhatsApp"}
                 </button>
-                <button onClick={() => { setEditando(true); setNumero(""); }} className="text-xs px-2 py-1 rounded-md" style={{ color: C.fraco, border: `1px solid ${C.borda}` }}>Trocar</button>
+                <button onClick={() => { setEditando(true); setEscolhendoGrupo(true); setBuscaGrupo(""); }} className="text-xs px-2 py-1 rounded-md" style={{ color: C.suave, border: `1px solid ${C.borda}` }}>
+                  {d.whatsapp.grupo ? "Trocar grupo" : "Mandar para um grupo"}
+                </button>
+                <button onClick={() => { setEditando(true); setEscolhendoGrupo(false); setNumero(""); }} className="text-xs px-2 py-1 rounded-md" style={{ color: C.fraco, border: `1px solid ${C.borda}` }}>
+                  {d.whatsapp.grupo ? "Usar número" : "Trocar número"}
+                </button>
                 <button onClick={() => salvarNumero.mutate({ token: managerToken, numero: "" })} className="text-xs px-2 py-1 rounded-md" style={{ color: C.marca, border: `1px solid ${C.borda}` }}>Remover</button>
               </div>
             )}
@@ -118,7 +123,7 @@ export function AlertasTelegram({ managerToken }: { managerToken: string }) {
                   className="flex-1 min-w-[220px] px-3 py-1.5 rounded-md text-sm outline-none"
                   style={{ background: "oklch(0.12 0.012 255)", border: `1px solid ${C.borda}`, color: C.texto }} />
                 <button onClick={() => grupos.refetch()} className="text-xs px-2 py-1 rounded-md" style={{ color: C.fraco, border: `1px solid ${C.borda}` }}>atualizar</button>
-                <button onClick={() => setEscolhendoGrupo(false)} className="text-xs px-2" style={{ color: C.fraco }}>cancelar</button>
+                <button onClick={() => { setEscolhendoGrupo(false); setEditando(false); }} className="text-xs px-2" style={{ color: C.fraco }}>cancelar</button>
               </div>
               <div className="mt-2 max-h-48 overflow-y-auto rounded-md" style={{ border: `1px solid ${C.borda}` }}>
                 {grupos.isLoading ? (
