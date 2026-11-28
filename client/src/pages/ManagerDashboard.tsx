@@ -394,7 +394,7 @@ export default function ManagerDashboard() {
   const enviarCapi = trpc.managers.enviarCapiAsManager.useMutation({
     onSuccess: (r) => {
       const partes = [r.scheduleSent ? `${r.scheduleSent} Schedule` : "", r.sent ? `${r.sent} Purchase` : ""].filter(Boolean);
-      toast.success(partes.length ? `Enviado ao Meta: ${partes.join(" + ")}.` : "Nenhum lead novo com status de agendado ou fechado para enviar.");
+      toast.success(partes.length ? `Enviado ao Meta: ${partes.join(" + ")} (${r.avaliados} leads com telefone avaliados).` : `Nada novo para enviar: ${r.avaliados} leads com telefone avaliados, nenhum agendamento ou fechamento dos últimos 30 dias que ainda não tenha ido.`);
       historicoCapi.refetch();
     },
     onError: (e) => toast.error(e.message),
@@ -1102,7 +1102,7 @@ export default function ManagerDashboard() {
                       <p className="text-[11px] text-muted-foreground m-0">
                         "Sincronizar Lead Ads" busca no Meta quem preencheu formulário e marca o anúncio de origem na coluna ao lado do telefone.
                         {historicoCapi.data?.configurado
-                          ? " \"Enviar ao Meta\" manda agora os agendamentos e fechamentos do Monday como eventos do pixel (também roda sozinho a cada hora)."
+                          ? " \"Enviar ao Meta\" manda agora os agendamentos e fechamentos do Monday dos últimos 30 dias como eventos do pixel, para todo lead com telefone, venha de formulário ou de WhatsApp (também roda sozinho a cada hora)."
                           : " Para devolver agendamentos e fechamentos ao pixel, salve Pixel ID e token da CAPI nas configurações do cliente."}
                       </p>
                     </div>
