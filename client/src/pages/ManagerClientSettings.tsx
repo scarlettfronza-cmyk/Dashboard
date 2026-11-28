@@ -1020,7 +1020,7 @@ export default function ManagerClientSettings() {
               {saveCAPI.isPending ? "Salvando..." : "Salvar CAPI"}
             </ActionBtn>
             <p className="text-xs" style={{ color: "oklch(0.40 0.010 240)" }}>
-              Após configurar, vá em CRM &gt; Leads e clique em "Sincronizar Lead Ads" para identificar de qual anúncio cada lead veio.
+              Depois de salvar, abra o cliente no painel, aba CRM, e clique em "Sincronizar Lead Ads" para ver de qual anúncio cada lead veio. Agendamentos e fechamentos do Monday vão ao pixel a cada hora, ou na hora pelo botão "Enviar ao Meta".
             </p>
           </SectionCard>
 

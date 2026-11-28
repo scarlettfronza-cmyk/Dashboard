@@ -936,6 +936,48 @@ export const managersRouter = router({
   // ── Carteira inteira num período: CPL de cada cliente e de cada campanha ──
   // Consulta os clientes em paralelo (poucos por vez: cada um bate na API do
   // Meta). Falha em um cliente vira uma linha "erro", não derruba a tela.
+  // ── Rastreio de leads de formulário e CAPI, pela gestora ──────────────────
+  sincronizarLeadAdsAsManager: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number(), diasAtras: z.number().min(1).max(365).optional() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const { sincronizarLeadAds } = await import("../rastreioLeads");
+      const r = await sincronizarLeadAds(input.clientId, input.diasAtras ?? 90);
+      if (!r.ok) {
+        const msg = r.motivo === "sem_meta" ? "Este cliente não tem conta de anúncio ligada (ou falta o token da agência)." : "Não foi possível sincronizar agora.";
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
+      return r;
+    }),
+
+  origemDosLeadsAsManager: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number() }))
+    .query(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const { mapaDeOrigem } = await import("../rastreioLeads");
+      return mapaDeOrigem(input.clientId);
+    }),
+
+  enviarCapiAsManager: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number() }))
+    .mutation(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const cliente = await getClientById(input.clientId);
+      if (!cliente?.metaPixelId || !cliente?.metaCAPIToken) throw new TRPCError({ code: "BAD_REQUEST", message: "Pixel ID e token da CAPI ainda não estão salvos nas configurações deste cliente." });
+      if (!cliente.mondayBoardId) throw new TRPCError({ code: "BAD_REQUEST", message: "Este cliente não tem quadro do Monday ligado; é de lá que saem agendamentos e fechamentos." });
+      const { sendCAPIEventsForClient } = await import("../capiAutoSend");
+      return sendCAPIEventsForClient(input.clientId);
+    }),
+
+  historicoCapiAsManager: publicProcedure
+    .input(z.object({ token: z.string(), clientId: z.number() }))
+    .query(async ({ input }) => {
+      await verifyManagerOwnsClient(input.token, input.clientId);
+      const { historicoCapi } = await import("../rastreioLeads");
+      const cliente = await getClientById(input.clientId);
+      return { configurado: Boolean(cliente?.metaPixelId && cliente?.metaCAPIToken), eventos: await historicoCapi(input.clientId) };
+    }),
+
   // ── Diário de decisões (sinal → hipótese → ação → prazo → resultado) ─────
   listarDecisoes: publicProcedure
     .input(z.object({ token: z.string(), clientId: z.number() }))

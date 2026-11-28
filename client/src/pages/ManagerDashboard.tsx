@@ -156,11 +156,23 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-function LeadRow({ lead }: { lead: any }) {
+type OrigemAnuncio = { adName: string; campaignName: string; adSetName: string };
+
+function LeadRow({ lead, origens }: { lead: any; origens: Record<string, OrigemAnuncio> }) {
+  const digitos = String(lead.phone ?? "").replace(/\D/g, "");
+  const origem = origens[digitos] ?? origens[digitos.slice(-9)] ?? null;
   return (
     <tr className="border-b border-border hover:bg-muted/30 transition-colors">
       <td className="px-3 py-2.5 text-sm font-medium text-foreground">{lead.name || "—"}</td>
       <td className="px-3 py-2.5 text-sm text-muted-foreground">{lead.phone || "—"}</td>
+      <td className="px-3 py-2.5 text-xs" title={origem ? `${origem.campaignName} › ${origem.adSetName} › ${origem.adName}` : "Sem formulário do Meta com este telefone"}>
+        {origem ? (
+          <span className="inline-flex flex-col leading-tight">
+            <span className="font-medium text-foreground truncate max-w-[220px]">{origem.adName || origem.campaignName || "anúncio"}</span>
+            {origem.campaignName && <span className="text-muted-foreground truncate max-w-[220px]">{origem.campaignName}</span>}
+          </span>
+        ) : <span className="text-muted-foreground/60">—</span>}
+      </td>
       <td className="px-3 py-2.5">
         {lead.status ? (
           <span className="text-xs font-medium px-2 py-0.5 rounded-full"
@@ -357,6 +369,33 @@ export default function ManagerDashboard() {
   const { data: trendData } = trpc.managers.getTrendsAsManager.useQuery(
     { token: token!, clientId: activeClient! }, { enabled: !!token && !!activeClient }
   );
+
+  // Anúncio de origem (leads de formulário do Meta cruzados pelo telefone) e CAPI.
+  const origens = trpc.managers.origemDosLeadsAsManager.useQuery(
+    { token: token!, clientId: activeClient! },
+    { enabled: !!activeClient && !!token && activeTab === "crm", staleTime: 60_000 }
+  );
+  const historicoCapi = trpc.managers.historicoCapiAsManager.useQuery(
+    { token: token!, clientId: activeClient! },
+    { enabled: !!activeClient && !!token && activeTab === "crm", staleTime: 60_000 }
+  );
+  const [mostrarEventos, setMostrarEventos] = useState(false);
+  const sincronizarLeadAds = trpc.managers.sincronizarLeadAdsAsManager.useMutation({
+    onSuccess: (r) => {
+      if (!r.ok) return;
+      toast.success(`${r.encontrados} leads de formulário no Meta, ${r.novos} novos${r.eventosLead ? `, ${r.eventosLead} eventos Lead enviados` : ""}.`);
+      origens.refetch(); historicoCapi.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const enviarCapi = trpc.managers.enviarCapiAsManager.useMutation({
+    onSuccess: (r) => {
+      const partes = [r.scheduleSent ? `${r.scheduleSent} Schedule` : "", r.sent ? `${r.sent} Purchase` : ""].filter(Boolean);
+      toast.success(partes.length ? `Enviado ao Meta: ${partes.join(" + ")}.` : "Nenhum lead novo com status de agendado ou fechado para enviar.");
+      historicoCapi.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   const { data: leadsData, isLoading: leadsLoading, refetch: refetchLeads } = trpc.managers.getLeadsAsManager.useQuery(
     { token: token!, clientId: activeClient!, status: statusFilter || undefined, search: searchTerm || undefined, dateFrom: crmDateFrom || undefined, dateTo: crmDateTo || undefined, dateField: crmDateField },
@@ -1052,6 +1091,60 @@ export default function ManagerDashboard() {
                       <RefreshCw className="w-3 h-3" /> Atualizar
                     </button>
                   </div>
+
+                  {/* Rastreio: de qual anúncio cada lead veio, e o que foi devolvido ao Meta */}
+                  <div className="rounded-xl border border-border px-4 py-3 mb-4 flex flex-wrap items-center gap-3">
+                    <div className="flex-1 min-w-[240px]">
+                      <p className="text-xs font-semibold m-0">Rastreio de anúncio e Conversions API</p>
+                      <p className="text-[11px] text-muted-foreground m-0">
+                        "Sincronizar Lead Ads" busca no Meta quem preencheu formulário e marca o anúncio de origem na coluna ao lado do telefone.
+                        {historicoCapi.data?.configurado
+                          ? " \"Enviar ao Meta\" manda agora os agendamentos e fechamentos do Monday como eventos do pixel (também roda sozinho a cada hora)."
+                          : " Para devolver agendamentos e fechamentos ao pixel, salve Pixel ID e token da CAPI nas configurações do cliente."}
+                      </p>
+                    </div>
+                    <button onClick={() => sincronizarLeadAds.mutate({ token: token!, clientId: activeClient! })} disabled={sincronizarLeadAds.isPending}
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+                      style={{ background: "oklch(0.55 0.18 240 / 0.15)", color: "oklch(0.75 0.15 240)", border: "1px solid oklch(0.55 0.18 240 / 0.35)" }}>
+                      <Target className="w-3 h-3" /> {sincronizarLeadAds.isPending ? "Sincronizando..." : "Sincronizar Lead Ads"}
+                    </button>
+                    <button onClick={() => enviarCapi.mutate({ token: token!, clientId: activeClient! })} disabled={enviarCapi.isPending || !historicoCapi.data?.configurado}
+                      title={historicoCapi.data?.configurado ? "" : "Configure Pixel ID e token da CAPI primeiro"}
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-40"
+                      style={{ background: "oklch(0.55 0.18 145 / 0.15)", color: "oklch(0.70 0.15 145)", border: "1px solid oklch(0.55 0.18 145 / 0.35)" }}>
+                      <Zap className="w-3 h-3" /> {enviarCapi.isPending ? "Enviando..." : "Enviar ao Meta"}
+                    </button>
+                    <button onClick={() => setMostrarEventos((v) => !v)} className="text-xs px-2 py-1.5 text-muted-foreground">
+                      {mostrarEventos ? "esconder eventos ▲" : `eventos enviados (${historicoCapi.data?.eventos.length ?? 0}) ▼`}
+                    </button>
+                    {mostrarEventos && (
+                      <div className="w-full overflow-x-auto rounded-lg border border-border">
+                        {!historicoCapi.data?.eventos.length ? (
+                          <p className="text-xs text-muted-foreground px-3 py-2 m-0">Nenhum evento enviado ao Meta ainda.</p>
+                        ) : (
+                          <table className="w-full text-xs">
+                            <thead><tr className="text-[10px] uppercase tracking-wider text-muted-foreground bg-muted/40">
+                              <th className="text-left px-3 py-1.5 font-semibold">Quando</th><th className="text-left px-3 py-1.5 font-semibold">Evento</th>
+                              <th className="text-left px-3 py-1.5 font-semibold">Telefone</th><th className="text-right px-3 py-1.5 font-semibold">Valor</th>
+                              <th className="text-left px-3 py-1.5 font-semibold">Origem</th><th className="text-left px-3 py-1.5 font-semibold">Meta aceitou?</th>
+                            </tr></thead>
+                            <tbody>
+                              {historicoCapi.data.eventos.map((e) => (
+                                <tr key={e.id} className="border-t border-border/60">
+                                  <td className="px-3 py-1.5 whitespace-nowrap">{new Date(e.quando).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
+                                  <td className="px-3 py-1.5 font-medium">{e.evento}</td>
+                                  <td className="px-3 py-1.5 font-mono">{e.telefone}</td>
+                                  <td className="px-3 py-1.5 text-right">{e.valor != null ? formatCurrency(e.valor) : "—"}</td>
+                                  <td className="px-3 py-1.5 text-muted-foreground">{e.origem === "meta_lead_ads" ? "formulário" : e.origem === "monday_auto" ? "Monday (automático)" : e.origem}</td>
+                                  <td className="px-3 py-1.5" style={{ color: e.ok ? "#34d399" : "#ff8a94" }}>{e.ok ? "sim" : `não${e.erro ? ` · ${e.erro}` : ""}`}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   {leadsLoading ? (
                     <div className="flex items-center justify-center py-20 text-muted-foreground"><RefreshCw className="w-5 h-5 animate-spin mr-2" />Carregando leads...</div>
                   ) : filteredLeads.length === 0 ? (
@@ -1062,12 +1155,12 @@ export default function ManagerDashboard() {
                         <table className="w-full text-left">
                           <thead>
                             <tr className="bg-muted/50 border-b border-border">
-                              {["Nome", "Telefone", "Status", "Origem", "Procedimento", "Consulta", "Grupo"].map(h => (
+                              {["Nome", "Telefone", "Anúncio de origem", "Status", "Origem", "Procedimento", "Consulta", "Grupo"].map(h => (
                                 <th key={h} className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
                               ))}
                             </tr>
                           </thead>
-                          <tbody>{filteredLeads.map((lead: any) => <LeadRow key={lead.mondayId} lead={lead} />)}</tbody>
+                          <tbody>{filteredLeads.map((lead: any) => <LeadRow key={lead.mondayId} lead={lead} origens={origens.data ?? {}} />)}</tbody>
                         </table>
                       </div>
                       <div className="px-4 py-2 text-xs text-muted-foreground border-t border-border">Mostrando {filteredLeads.length} de {leadsData?.total ?? 0} leads</div>
