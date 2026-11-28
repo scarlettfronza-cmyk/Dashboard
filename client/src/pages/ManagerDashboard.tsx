@@ -383,7 +383,10 @@ export default function ManagerDashboard() {
   const sincronizarLeadAds = trpc.managers.sincronizarLeadAdsAsManager.useMutation({
     onSuccess: (r) => {
       if (!r.ok) return;
-      toast.success(`${r.encontrados} leads de formulário no Meta, ${r.novos} novos${r.eventosLead ? `, ${r.eventosLead} eventos Lead enviados` : ""}.`);
+      if (r.anuncios === 0) toast.warning("O Meta não devolveu nenhum anúncio nesta conta. Confira se a conta de anúncio ligada é a certa.");
+      else if (r.encontrados === 0) toast.info(`${r.anuncios} anúncios lidos, nenhum lead de formulário nos últimos 90 dias. Esta conta provavelmente roda só campanhas de mensagem.`);
+      else toast.success(`${r.encontrados} leads de formulário no Meta, ${r.novos} novos${r.eventosLead ? `, ${r.eventosLead} eventos Lead enviados` : ""}.`);
+      if (r.aviso) toast.warning(`Parte dos leads não pôde ser lida: ${r.aviso}`);
       origens.refetch(); historicoCapi.refetch();
     },
     onError: (e) => toast.error(e.message),

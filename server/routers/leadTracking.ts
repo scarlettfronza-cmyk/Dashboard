@@ -119,7 +119,7 @@ export const leadTrackingRouter = router({
 
       // Busca leads do Meta Lead Ads
       console.log(`[LeadTracking] Fetching Meta Lead Ads for client ${input.clientId}, account ${adAccountId}`);
-      const metaLeads = await fetchMetaLeadAdLeads(token, adAccountId, input.daysBack);
+      const { leads: metaLeads } = await fetchMetaLeadAdLeads(token, adAccountId, input.daysBack);
       console.log(`[LeadTracking] Found ${metaLeads.length} leads on Meta`);
 
       if (!metaLeads.length) {

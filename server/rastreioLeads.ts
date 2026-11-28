@@ -14,8 +14,8 @@ import { getSystemSetting } from "./_core/systemRouter";
 import { resolverToken, CHAVE_TOKEN_AGENCIA } from "./metaTokenResolver";
 
 export type ResultadoSyncLeadAds =
-  | { ok: false; motivo: "sem_meta" | "sem_banco" | "sem_cliente" }
-  | { ok: true; encontrados: number; novos: number; eventosLead: number };
+  | { ok: false; motivo: "sem_meta" | "sem_banco" | "sem_cliente" | "meta_erro"; erro?: string }
+  | { ok: true; encontrados: number; novos: number; eventosLead: number; anuncios: number; aviso?: string };
 
 /** Busca os leads de formulário no Meta e guarda o anúncio de origem de cada um. */
 export async function sincronizarLeadAds(clientId: number, diasAtras = 90): Promise<ResultadoSyncLeadAds> {
@@ -30,7 +30,8 @@ export async function sincronizarLeadAds(clientId: number, diasAtras = 90): Prom
 
   // Só a conta principal: formulários de lead ficam nela.
   const conta = adAccountId.split(",")[0].trim();
-  const leads = await fetchMetaLeadAdLeads(token, conta, diasAtras);
+  const { leads, erro, anuncios } = await fetchMetaLeadAdLeads(token, conta, diasAtras);
+  if (erro && !leads.length) return { ok: false, motivo: "meta_erro", erro };
 
   let novos = 0, eventosLead = 0;
   for (const lead of leads) {
@@ -58,7 +59,7 @@ export async function sincronizarLeadAds(clientId: number, diasAtras = 90): Prom
       if (success) eventosLead++;
     }
   }
-  return { ok: true, encontrados: leads.length, novos, eventosLead };
+  return { ok: true, encontrados: leads.length, novos, eventosLead, anuncios, aviso: erro };
 }
 
 export type OrigemLead = { adName: string; campaignName: string; adSetName: string };

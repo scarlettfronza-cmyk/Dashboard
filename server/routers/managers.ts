@@ -944,7 +944,9 @@ export const managersRouter = router({
       const { sincronizarLeadAds } = await import("../rastreioLeads");
       const r = await sincronizarLeadAds(input.clientId, input.diasAtras ?? 90);
       if (!r.ok) {
-        const msg = r.motivo === "sem_meta" ? "Este cliente não tem conta de anúncio ligada (ou falta o token da agência)." : "Não foi possível sincronizar agora.";
+        const msg = r.motivo === "sem_meta" ? "Este cliente não tem conta de anúncio ligada (ou falta o token da agência)."
+          : r.motivo === "meta_erro" ? `O Meta recusou a leitura dos leads: ${r.erro}. Quase sempre é o token sem a permissão leads_retrieval ou sem acesso à Página do cliente.`
+          : "Não foi possível sincronizar agora.";
         throw new TRPCError({ code: "BAD_REQUEST", message: msg });
       }
       return r;

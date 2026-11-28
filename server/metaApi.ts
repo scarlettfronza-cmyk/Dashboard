@@ -995,69 +995,78 @@ export function normalizePhone(raw: string): string {
 }
 
 // Busca todos os leads de um ad account via Meta Lead Ads API
+export type ResultadoLeadAds = { leads: MetaLeadAdLead[]; erro?: string; anuncios: number };
+
+/**
+ * Leads de formulário (Lead Ads) da conta, pelos anúncios: cada anúncio tem
+ * a aresta `leads`. Os formulários em si pertencem à Página, não à conta,
+ * por isso o caminho antigo (conta/leadgen_forms) voltava vazio.
+ *
+ * Exige a permissão `leads_retrieval` no token e acesso à Página do
+ * cliente; sem isso o Meta devolve erro, que vai em `erro` para a tela.
+ */
 export async function fetchMetaLeadAdLeads(
   accessToken: string,
   adAccountId: string,
   daysBack = 90
-): Promise<MetaLeadAdLead[]> {
-  const normalizedAccountId = adAccountId.startsWith("act_")
-    ? adAccountId
-    : `act_${adAccountId}`;
+): Promise<ResultadoLeadAds> {
+  const conta = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const since = Date.now() - daysBack * 24 * 60 * 60 * 1000;
+  const leads: MetaLeadAdLead[] = [];
+  const mensagemErro = (err: unknown): string => {
+    const e = err as { response?: { data?: { error?: { message?: string; code?: number } } }; message?: string };
+    const m = e?.response?.data?.error;
+    return m?.message ? `${m.message}${m.code ? ` (código ${m.code})` : ""}` : e?.message ?? String(err);
+  };
 
-  const since = Math.floor((Date.now() - daysBack * 24 * 60 * 60 * 1000) / 1000);
-
-  const formsUrl = `${GRAPH_API_BASE}/${normalizedAccountId}/leadgen_forms?fields=id,name&limit=100&access_token=${accessToken}`;
-  let formsRes: any;
+  type Anuncio = {
+    id: string; name?: string; adset_id?: string; adset_name?: string; campaign_id?: string; campaign_name?: string;
+    leads?: { data?: Array<{ id: string; created_time?: string; field_data?: Array<{ name?: string; values?: string[] }> }>; paging?: { next?: string } };
+  };
+  let anuncios: Anuncio[] = [];
   try {
-    formsRes = await axios.get(formsUrl, { timeout: 30000 });
-  } catch (err: any) {
-    console.error("[Meta LeadAds] Error fetching forms:", err?.response?.data ?? err);
-    return [];
+    anuncios = await paginarGraph<Anuncio>(`${GRAPH_API_BASE}/${conta}/ads`, {
+      access_token: accessToken,
+      fields: "id,name,adset_id,adset_name,campaign_id,campaign_name,leads.limit(100){id,created_time,field_data}",
+      limit: 100,
+    });
+  } catch (err) {
+    const erro = mensagemErro(err);
+    console.error("[Meta LeadAds] Erro ao listar anúncios com leads:", erro);
+    return { leads, erro, anuncios: 0 };
   }
 
-  const forms: { id: string; name: string }[] = formsRes.data?.data ?? [];
-  if (!forms.length) return [];
+  const guardar = (ad: Anuncio, lead: NonNullable<NonNullable<Anuncio["leads"]>["data"]>[number]) => {
+    const criado = lead.created_time ? Date.parse(lead.created_time) : NaN;
+    if (!Number.isNaN(criado) && criado < since) return;
+    const campo = (lead.field_data ?? []).find((f) =>
+      ["phone_number", "phone", "telefone", "celular", "whatsapp", "numero", "número"].includes((f.name ?? "").toLowerCase()));
+    const phone = normalizePhone(campo?.values?.[0] ?? "");
+    if (!phone) return;
+    leads.push({
+      leadId: lead.id, formId: "", adId: ad.id, adName: ad.name ?? "", adSetId: ad.adset_id ?? "", adSetName: ad.adset_name ?? "",
+      campaignId: ad.campaign_id ?? "", campaignName: ad.campaign_name ?? "", phone, createdTime: lead.created_time ?? "",
+    });
+  };
 
-  const allLeads: MetaLeadAdLead[] = [];
-
-  for (const form of forms) {
-    const leadsUrl = `${GRAPH_API_BASE}/${form.id}/leads?fields=id,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,field_data,created_time&limit=200&filtering=[{"field":"time_created","operator":"GREATER_THAN","value":${since}}]&access_token=${accessToken}`;
+  let primeiroErro: string | undefined;
+  for (const ad of anuncios) {
+    for (const lead of ad.leads?.data ?? []) guardar(ad, lead);
+    // Anúncio com mais de 100 leads: segue a paginação da aresta.
+    let next = ad.leads?.paging?.next ?? null;
     try {
-      let nextUrl: string | null = leadsUrl;
-      while (nextUrl) {
-        const res: { data: any } = await axios.get(nextUrl, { timeout: 30000 });
-        const items: any[] = res.data?.data ?? [];
-        for (const lead of items) {
-          const phoneField = (lead.field_data ?? []).find((f: any) =>
-            ["phone_number", "phone", "telefone", "celular", "whatsapp"].includes(
-              (f.name ?? "").toLowerCase()
-            )
-          );
-          const rawPhone = phoneField?.values?.[0] ?? "";
-          const phone = normalizePhone(rawPhone);
-          if (!phone) continue;
-
-          allLeads.push({
-            leadId: lead.id,
-            formId: form.id,
-            adId: lead.ad_id ?? "",
-            adName: lead.ad_name ?? "",
-            adSetId: lead.adset_id ?? "",
-            adSetName: lead.adset_name ?? "",
-            campaignId: lead.campaign_id ?? "",
-            campaignName: lead.campaign_name ?? "",
-            phone,
-            createdTime: lead.created_time ?? "",
-          });
-        }
-        nextUrl = res.data?.paging?.next ?? null;
+      while (next) {
+        const resp: { data?: { data?: Array<{ id: string; created_time?: string; field_data?: Array<{ name?: string; values?: string[] }> }>; paging?: { next?: string } } } =
+          await axios.get(next, { timeout: 30000 });
+        for (const lead of resp.data?.data ?? []) guardar(ad, lead);
+        next = resp.data?.paging?.next ?? null;
       }
-    } catch (err: any) {
-      console.error(`[Meta LeadAds] Error fetching leads for form ${form.id}:`, err?.response?.data ?? err);
+    } catch (err) {
+      primeiroErro ??= mensagemErro(err);
+      console.error(`[Meta LeadAds] Erro ao paginar leads do anúncio ${ad.id}:`, primeiroErro);
     }
   }
-
-  return allLeads;
+  return { leads, erro: primeiroErro, anuncios: anuncios.length };
 }
 
 // Envia evento de conversão offline para a Meta Conversions API
